@@ -237,6 +237,41 @@ function samplePlayableMask(
 }
 
 /**
+ * Build a binary playable-area mask from raw RGBA (or RGB) pixel bytes.
+ * Eroded slightly so arcs stop inside the green edge.
+ * Safe for browser and Node (no DOM).
+ */
+export function buildPlayableMaskFromRgba(
+  pixels: Uint8Array | Buffer,
+  width: number,
+  height: number,
+  channels = 4,
+): HoleGraphicPlayableMask | null {
+  if (!width || !height || channels < 3) return null;
+  if (pixels.length < width * height * channels) return null;
+
+  const raw = new Uint8Array(width * height);
+  for (let p = 0, i = 0; p < raw.length; p += 1, i += channels) {
+    const r = pixels[i];
+    const g = pixels[i + 1];
+    const b = pixels[i + 2];
+    const a = channels >= 4 ? pixels[i + 3] : 255;
+    raw[p] = isPlayableGreenPixel(r, g, b, a) ? 1 : 0;
+  }
+
+  const erodeRadius = Math.min(
+    14,
+    Math.max(3, Math.round(Math.min(width, height) * 0.006)),
+  );
+
+  return {
+    width,
+    height,
+    data: erodeBinaryMask(raw, width, height, erodeRadius),
+  };
+}
+
+/**
  * Build a binary playable-area mask from the hole graphic.
  * Eroded slightly so arcs stop inside the green edge.
  */
@@ -266,44 +301,118 @@ export function buildHoleGraphicPlayableMask(
 
     ctx.drawImage(image, 0, 0, width, height);
     const imageData = ctx.getImageData(0, 0, width, height);
-    const pixels = imageData.data;
-    const raw = new Uint8Array(width * height);
-
-    for (let i = 0, p = 0; i < pixels.length; i += 4, p += 1) {
-      raw[p] = isPlayableGreenPixel(
-        pixels[i],
-        pixels[i + 1],
-        pixels[i + 2],
-        pixels[i + 3],
-      )
-        ? 1
-        : 0;
-    }
-
-    const erodeRadius = Math.min(
-      14,
-      Math.max(3, Math.round(Math.min(width, height) * 0.006)),
-    );
-
-    return {
+    return buildPlayableMaskFromRgba(
+      imageData.data,
       width,
       height,
-      data: erodeBinaryMask(raw, width, height, erodeRadius),
-    };
+      4,
+    );
+  } catch {
+    return null;
+  }
+}
+
+export function deserializePlayableMask(payload: {
+  width: number;
+  height: number;
+  data: string;
+}): HoleGraphicPlayableMask | null {
+  if (
+    !payload ||
+    !Number.isFinite(payload.width) ||
+    !Number.isFinite(payload.height) ||
+    payload.width < 1 ||
+    payload.height < 1 ||
+    typeof payload.data !== "string"
+  ) {
+    return null;
+  }
+  try {
+    const binary = atob(payload.data);
+    const data = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      data[i] = binary.charCodeAt(i);
+    }
+    if (data.length < payload.width * payload.height) return null;
+    return { width: payload.width, height: payload.height, data };
+  } catch {
+    return null;
+  }
+}
+
+/** Pull the underlying Sanity CDN file URL out of a graphic src (proxy or direct). */
+export function sanityFileUrlFromGraphicSrc(src: string): string | null {
+  try {
+    const parsed = new URL(
+      src,
+      typeof window !== "undefined" ? window.location.href : "http://localhost",
+    );
+    if (parsed.pathname.startsWith("/api/sanity-file")) {
+      const nested = parsed.searchParams.get("url")?.trim();
+      return nested || null;
+    }
+    if (
+      parsed.hostname === "cdn.sanity.io" &&
+      parsed.pathname.startsWith("/files/")
+    ) {
+      return parsed.toString();
+    }
+    return null;
   } catch {
     return null;
   }
 }
 
 /**
- * Fetch a same-origin (or CORS-enabled) graphic and build a playable mask.
- * Avoids tainted-canvas failures from CDN images loaded without CORS.
+ * Load the playable-area mask via a server API (Sharp rasterize).
+ * Avoids browser CORS / Deployment Protection / SVG-canvas issues on Vercel.
  */
 export async function buildHoleGraphicPlayableMaskFromUrl(
   src: string,
 ): Promise<HoleGraphicPlayableMask | null> {
   if (!src || typeof fetch === "undefined") return null;
 
+  try {
+    const sanityUrl = sanityFileUrlFromGraphicSrc(src);
+    const endpoint = sanityUrl
+      ? `/api/hole-graphic-mask?url=${encodeURIComponent(sanityUrl)}`
+      : null;
+
+    if (endpoint) {
+      const response = await fetch(endpoint, {
+        credentials: "same-origin",
+      });
+      if (response.ok) {
+        const json = (await response.json()) as {
+          width?: number;
+          height?: number;
+          data?: string;
+        };
+        if (
+          typeof json.width === "number" &&
+          typeof json.height === "number" &&
+          typeof json.data === "string"
+        ) {
+          const mask = deserializePlayableMask({
+            width: json.width,
+            height: json.height,
+            data: json.data,
+          });
+          if (mask) return mask;
+        }
+      }
+    }
+
+    // Local / fallback path: decode via blob when server mask is unavailable.
+    return await buildHoleGraphicPlayableMaskFromBlobFetch(src);
+  } catch {
+    return null;
+  }
+}
+
+async function buildHoleGraphicPlayableMaskFromBlobFetch(
+  src: string,
+): Promise<HoleGraphicPlayableMask | null> {
   try {
     const fetchUrl = toSameOriginSanityProxyUrl(src);
     const isSameOrigin =
@@ -313,8 +422,6 @@ export async function buildHoleGraphicPlayableMaskFromUrl(
 
     const response = await fetch(fetchUrl, {
       mode: "cors",
-      // Vercel Deployment Protection auth is cookie-based. <img> sends cookies
-      // automatically; fetch must too or the proxy 401s only in production.
       credentials: isSameOrigin ? "same-origin" : "omit",
     });
     if (!response.ok) return null;
@@ -360,11 +467,17 @@ export async function buildHoleGraphicPlayableMaskFromUrl(
 function toSameOriginSanityProxyUrl(src: string): string {
   try {
     if (src.startsWith("/api/sanity-file?")) return src;
-    const parsed = new URL(src, typeof window !== "undefined" ? window.location.href : "http://localhost");
+    const parsed = new URL(
+      src,
+      typeof window !== "undefined" ? window.location.href : "http://localhost",
+    );
     if (parsed.pathname.startsWith("/api/sanity-file")) {
       return `${parsed.pathname}${parsed.search}`;
     }
-    if (parsed.hostname === "cdn.sanity.io" && parsed.pathname.startsWith("/files/")) {
+    if (
+      parsed.hostname === "cdn.sanity.io" &&
+      parsed.pathname.startsWith("/files/")
+    ) {
       return `/api/sanity-file?url=${encodeURIComponent(parsed.toString())}`;
     }
     return src;
