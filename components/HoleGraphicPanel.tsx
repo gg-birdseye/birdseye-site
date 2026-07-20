@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type {
   CameraPathPoint,
   HoleGraphic,
+  YardageArcRender,
   YardageArcsData,
 } from "@/lib/sanity/courses";
 import { cameraPathHasTrack } from "@/lib/camera-path";
@@ -29,6 +30,7 @@ type HoleGraphicPanelProps = {
   holeGraphic?: HoleGraphic;
   cameraPath?: CameraPathPoint[];
   yardageArcs?: YardageArcsData;
+  yardageArcRender?: YardageArcRender;
   flyoverProgress?: number;
   onPathSeek?: (progress: number) => void;
   useDesktopTopBar?: boolean;
@@ -44,6 +46,7 @@ export function HoleGraphicPanel({
   holeGraphic,
   cameraPath,
   yardageArcs,
+  yardageArcRender,
   flyoverProgress = 0,
   onPathSeek,
   useDesktopTopBar = false,
@@ -213,6 +216,7 @@ export function HoleGraphicPanel({
                 graphicSrc={holeGraphic.src}
                 graphicCdnSrc={holeGraphic.cdnSrc}
                 yardageArcs={yardageArcs}
+                yardageArcRender={yardageArcRender}
                 visible={yardagesVisible}
               />
               <CameraPathOverlay

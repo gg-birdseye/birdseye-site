@@ -557,12 +557,26 @@ export type HoleGraphicEntry = {
   graphic: HoleGraphic;
   cameraPath?: CameraPathPoint[];
   yardageArcs?: YardageArcsData;
-  /** Precomputed green mask (base64) for yardage arc clipping on the client. */
-  playableMask?: {
-    width: number;
-    height: number;
-    data: string;
-  };
+  /**
+   * Server-precomputed clipped arc paths (viewBox coords).
+   * Prefer this on the client so production does not need a mask fetch.
+   */
+  yardageArcRender?: YardageArcRender;
+};
+
+export type YardageArcRenderPath = {
+  yards: number;
+  pathD: string;
+  labelX: number;
+  labelY: number;
+};
+
+export type YardageArcRender = {
+  width: number;
+  height: number;
+  pinX: number;
+  pinY: number;
+  paths: YardageArcRenderPath[];
 };
 
 /** Per-hole layout graphics (includes holes without video). */

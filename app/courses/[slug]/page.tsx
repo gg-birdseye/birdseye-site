@@ -10,7 +10,6 @@ import {
   courseContactInfo,
   courseHasPlayableVideo,
   courseHoleDescriptions,
-  courseHoleGraphics,
   courseHolePlaybacks,
   courseLogoSrc,
   coursePagePanels,
@@ -19,6 +18,7 @@ import {
   courseSeoOgImageSrc,
   getCourseBySlug,
 } from "@/lib/sanity/courses";
+import { courseHoleGraphicsWithArcRenders } from "@/lib/sanity/course-hole-graphics-server";
 import { buildGolfCourseJsonLd } from "@/lib/seo/course-json-ld";
 import { resolveCourseSeo } from "@/lib/seo/course-meta";
 import { absoluteUrl } from "@/lib/seo/site";
@@ -101,7 +101,7 @@ export default async function CoursePage({ params }: Props) {
   if (!courseHasPlayableVideo(course)) notFound();
 
   const holePlaybacks = courseHolePlaybacks(course);
-  const holeGraphics = courseHoleGraphics(course);
+  const holeGraphics = await courseHoleGraphicsWithArcRenders(course);
   const primary = coursePrimaryPlayback(course, 1);
   if (!primary) notFound();
 

@@ -28,6 +28,7 @@ import {
   type HoleGraphicEntry,
   type CameraPathPoint,
   type YardageArcsData,
+  type YardageArcRender,
   type HolePlayback,
   type ScorecardGender,
 } from "@/lib/sanity/courses";
@@ -222,6 +223,15 @@ export function ExampleCourseView({
     }
     return map;
   }, [holeGraphicsProp, holeVideos]);
+  const yardageArcRenderMap = useMemo(() => {
+    const map = new Map<number, YardageArcRender>();
+    for (const entry of holeGraphicsProp ?? []) {
+      if (entry.yardageArcRender) {
+        map.set(entry.holeNumber, entry.yardageArcRender);
+      }
+    }
+    return map;
+  }, [holeGraphicsProp]);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -957,6 +967,7 @@ export function ExampleCourseView({
         holeGraphic={holeGraphicMap.get(activeHole)}
         cameraPath={cameraPathMap.get(activeHole)}
         yardageArcs={yardageArcsMap.get(activeHole)}
+        yardageArcRender={yardageArcRenderMap.get(activeHole)}
         flyoverProgress={flyoverProgress}
         onPathSeek={goToFlyoverProgress}
         useDesktopTopBar={isDesktopLayout}

@@ -12,26 +12,23 @@ import {
   type ContainedMediaRect,
 } from "@/lib/aerial-map-geometry";
 import {
-  arcClipIsReady,
   buildClippedCirclePath,
-  deserializePlayableMask,
   pinToMediaPx,
   resolveArcAllowTest,
-  sanityFileUrlFromGraphicSrc,
   sortMarkersByYards,
   yardageArcsAreReady,
   yardageMarkerRadiusPx,
-  type HoleGraphicPlayableMask,
   type YardageArcsData,
 } from "@/lib/yardage-arcs";
+import type { YardageArcRender } from "@/lib/sanity/courses";
 
 type YardageArcOverlayProps = {
   contentRef: RefObject<HTMLElement | null>;
-  /** Proxied or CDN hole graphic URL. */
   graphicSrc?: string | null;
-  /** Original Sanity CDN URL when available. */
   graphicCdnSrc?: string | null;
   yardageArcs?: YardageArcsData | null;
+  /** Server-precomputed clipped paths (preferred). */
+  yardageArcRender?: YardageArcRender | null;
   visible?: boolean;
 };
 
@@ -56,36 +53,24 @@ function findHoleGraphicImage(
 
 export function YardageArcOverlay({
   contentRef,
-  graphicSrc,
-  graphicCdnSrc,
   yardageArcs,
+  yardageArcRender,
   visible = true,
 }: YardageArcOverlayProps) {
   const [mediaRect, setMediaRect] = useState<ContainedMediaRect | null>(null);
-  const [playableMask, setPlayableMask] =
-    useState<HoleGraphicPlayableMask | null>(null);
   const ready = yardageArcsAreReady(yardageArcs);
-  const hasCustomClip = ready && arcClipIsReady(yardageArcs.arcClip);
+  const hasServerPaths = Boolean(yardageArcRender?.paths?.length);
 
   const markers = useMemo(
     () => (ready ? sortMarkersByYards(yardageArcs.markers) : []),
     [ready, yardageArcs],
   );
 
-  const maskRequestUrl = useMemo(() => {
-    const cdn =
-      graphicCdnSrc?.trim() ||
-      sanityFileUrlFromGraphicSrc(graphicSrc?.trim() || "");
-    if (!cdn) return null;
-    return `/api/hole-graphic-mask?url=${encodeURIComponent(cdn)}`;
-  }, [graphicCdnSrc, graphicSrc]);
-
   const updateMediaRect = useCallback(() => {
     const container = contentRef.current;
     const img = findHoleGraphicImage(container);
     if (!container || !img) return;
 
-    // Measure against the <img> box (inside padding), not the padded container.
     const dimensions = readImageDimensions(img);
     const fitted = containedMediaRect(
       img.clientWidth,
@@ -104,7 +89,7 @@ export function YardageArcOverlay({
   }, [contentRef]);
 
   useEffect(() => {
-    if (!ready) {
+    if (!ready && !hasServerPaths) {
       setMediaRect(null);
       return;
     }
@@ -126,76 +111,37 @@ export function YardageArcOverlay({
         ? new ResizeObserver(() => updateMediaRect())
         : null;
     if (container) resizeObserver?.observe(container);
-    if (img && typeof ResizeObserver !== "undefined") {
-      resizeObserver?.observe(img);
-    }
+    if (img) resizeObserver?.observe(img);
 
     return () => {
       window.removeEventListener("resize", updateMediaRect);
       img?.removeEventListener("load", onImageLoad);
       resizeObserver?.disconnect();
     };
-  }, [contentRef, ready, updateMediaRect, yardageArcs, graphicSrc]);
-
-  // Always load the mask from the API (avoids huge RSC base64 / $ref issues).
-  useEffect(() => {
-    if (!visible || !ready || hasCustomClip || !maskRequestUrl) {
-      setPlayableMask(null);
-      return;
-    }
-
-    let cancelled = false;
-    const controller = new AbortController();
-
-    void (async () => {
-      try {
-        const response = await fetch(maskRequestUrl, {
-          credentials: "include",
-          signal: controller.signal,
-        });
-        if (!response.ok) {
-          if (!cancelled) setPlayableMask(null);
-          return;
-        }
-        const json = (await response.json()) as {
-          width?: number;
-          height?: number;
-          data?: string;
-        };
-        if (cancelled) return;
-        if (
-          typeof json.width === "number" &&
-          typeof json.height === "number" &&
-          typeof json.data === "string"
-        ) {
-          setPlayableMask(
-            deserializePlayableMask({
-              width: json.width,
-              height: json.height,
-              data: json.data,
-            }),
-          );
-        } else {
-          setPlayableMask(null);
-        }
-      } catch {
-        if (!cancelled) setPlayableMask(null);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [visible, ready, hasCustomClip, maskRequestUrl]);
+  }, [contentRef, ready, hasServerPaths, updateMediaRect, yardageArcs]);
 
   const arcPaths = useMemo(() => {
-    if (!ready || !mediaRect) return [];
+    if (!mediaRect) return [];
+
+    // Preferred: server already clipped paths to the playable area.
+    if (yardageArcRender?.paths?.length) {
+      return yardageArcRender.paths.map((arc, index) => ({
+        key: `${arc.yards}-${index}`,
+        pathD: arc.pathD,
+        labelX: arc.labelX,
+        labelY: arc.labelY,
+        yards: arc.yards,
+      }));
+    }
+
+    if (!ready) return [];
+
+    // Fallback (dev / missing server render): unclipped or custom-clip only.
     const pin = yardageArcs.pin;
     const center = pinToMediaPx(pin, mediaRect.width, mediaRect.height);
     const isAllowed = resolveArcAllowTest(
       yardageArcs.arcClip,
-      playableMask,
+      null,
       mediaRect.width,
       mediaRect.height,
     );
@@ -215,12 +161,19 @@ export function YardageArcOverlay({
         yards: marker.yards,
       };
     });
-  }, [markers, mediaRect, playableMask, ready, yardageArcs]);
+  }, [markers, mediaRect, ready, yardageArcRender, yardageArcs]);
 
-  if (!visible || !ready || !mediaRect) return null;
+  if (!visible || !mediaRect) return null;
+  if (!hasServerPaths && !ready) return null;
 
-  const pin = yardageArcs.pin;
-  const center = pinToMediaPx(pin, mediaRect.width, mediaRect.height);
+  const viewW = yardageArcRender?.width || mediaRect.width;
+  const viewH = yardageArcRender?.height || mediaRect.height;
+  const pinX =
+    yardageArcRender?.pinX ??
+    (ready ? pinToMediaPx(yardageArcs.pin, mediaRect.width, mediaRect.height).x : 0);
+  const pinY =
+    yardageArcRender?.pinY ??
+    (ready ? pinToMediaPx(yardageArcs.pin, mediaRect.width, mediaRect.height).y : 0);
 
   return (
     <div className="course-hole-graphic-yardage-overlay" aria-hidden>
@@ -237,7 +190,8 @@ export function YardageArcOverlay({
           className="course-hole-graphic-yardage-svg"
           width={mediaRect.width}
           height={mediaRect.height}
-          viewBox={`0 0 ${mediaRect.width} ${mediaRect.height}`}
+          viewBox={`0 0 ${viewW} ${viewH}`}
+          preserveAspectRatio="none"
         >
           {arcPaths.map((arc) =>
             arc.pathD ? (
@@ -255,7 +209,8 @@ export function YardageArcOverlay({
           className="course-hole-graphic-yardage-labels"
           width={mediaRect.width}
           height={mediaRect.height}
-          viewBox={`0 0 ${mediaRect.width} ${mediaRect.height}`}
+          viewBox={`0 0 ${viewW} ${viewH}`}
+          preserveAspectRatio="none"
         >
           {arcPaths.map((arc) => (
             <g key={`label-${arc.key}`}>
@@ -278,8 +233,8 @@ export function YardageArcOverlay({
             </g>
           ))}
           <circle
-            cx={center.x}
-            cy={center.y}
+            cx={pinX}
+            cy={pinY}
             r={5}
             className="course-hole-graphic-yardage-pin"
           />
