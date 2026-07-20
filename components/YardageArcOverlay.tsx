@@ -5,6 +5,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  type CSSProperties,
   type RefObject,
 } from "react";
 import {
@@ -13,11 +14,13 @@ import {
 } from "@/lib/aerial-map-geometry";
 import {
   buildClippedCirclePath,
+  buildHoleGraphicPlayableMaskFromUrl,
   pinToMediaPx,
   resolveArcAllowTest,
   sortMarkersByYards,
   yardageArcsAreReady,
   yardageMarkerRadiusPx,
+  type HoleGraphicPlayableMask,
   type YardageArcsData,
 } from "@/lib/yardage-arcs";
 import type { YardageArcRender } from "@/lib/sanity/courses";
@@ -27,7 +30,7 @@ type YardageArcOverlayProps = {
   graphicSrc?: string | null;
   graphicCdnSrc?: string | null;
   yardageArcs?: YardageArcsData | null;
-  /** Server-precomputed clipped paths (preferred). */
+  /** Server-precomputed clipped paths (used when pathD values look valid). */
   yardageArcRender?: YardageArcRender | null;
   visible?: boolean;
 };
@@ -51,19 +54,49 @@ function findHoleGraphicImage(
   );
 }
 
+/** Reject Flight refs / empty junk that sometimes leak into client props. */
+function isUsableSvgPath(pathD: string | null | undefined): boolean {
+  if (!pathD || typeof pathD !== "string") return false;
+  const trimmed = pathD.trim();
+  if (trimmed.length < 8) return false;
+  if (trimmed.startsWith("$")) return false;
+  return trimmed.startsWith("M") || trimmed.startsWith("m");
+}
+
+function serverRenderIsUsable(
+  render: YardageArcRender | null | undefined,
+): render is YardageArcRender {
+  return Boolean(
+    render &&
+      render.width > 0 &&
+      render.height > 0 &&
+      render.paths?.length &&
+      render.paths.every((arc) => isUsableSvgPath(arc.pathD)),
+  );
+}
+
 export function YardageArcOverlay({
   contentRef,
+  graphicSrc,
+  graphicCdnSrc,
   yardageArcs,
   yardageArcRender,
   visible = true,
 }: YardageArcOverlayProps) {
   const [mediaRect, setMediaRect] = useState<ContainedMediaRect | null>(null);
+  const [playableMask, setPlayableMask] =
+    useState<HoleGraphicPlayableMask | null>(null);
   const ready = yardageArcsAreReady(yardageArcs);
-  const hasServerPaths = Boolean(yardageArcRender?.paths?.length);
+  const usableServerRender = serverRenderIsUsable(yardageArcRender);
+  const maskSrc = graphicSrc || graphicCdnSrc || null;
 
   const markers = useMemo(
     () => (ready ? sortMarkersByYards(yardageArcs.markers) : []),
     [ready, yardageArcs],
+  );
+
+  const hasCustomClip = Boolean(
+    ready && yardageArcs.arcClip && yardageArcs.arcClip.length >= 3,
   );
 
   const updateMediaRect = useCallback(() => {
@@ -71,25 +104,29 @@ export function YardageArcOverlay({
     const img = findHoleGraphicImage(container);
     if (!container || !img) return;
 
+    const containerRect = container.getBoundingClientRect();
+    const imgRect = img.getBoundingClientRect();
+    if (imgRect.width <= 0 || imgRect.height <= 0) return;
+
     const dimensions = readImageDimensions(img);
     const fitted = containedMediaRect(
-      img.clientWidth,
-      img.clientHeight,
+      imgRect.width,
+      imgRect.height,
       dimensions.width,
       dimensions.height,
     );
     if (!fitted) return;
 
     setMediaRect({
-      left: img.offsetLeft + fitted.left,
-      top: img.offsetTop + fitted.top,
+      left: imgRect.left - containerRect.left + fitted.left,
+      top: imgRect.top - containerRect.top + fitted.top,
       width: fitted.width,
       height: fitted.height,
     });
   }, [contentRef]);
 
   useEffect(() => {
-    if (!ready && !hasServerPaths) {
+    if (!ready) {
       setMediaRect(null);
       return;
     }
@@ -118,13 +155,61 @@ export function YardageArcOverlay({
       img?.removeEventListener("load", onImageLoad);
       resizeObserver?.disconnect();
     };
-  }, [contentRef, ready, hasServerPaths, updateMediaRect, yardageArcs]);
+  }, [contentRef, ready, updateMediaRect, yardageArcs]);
+
+  // Always load the Sharp playable mask on the client (same-origin API).
+  // This matches localhost clipping and avoids depending on huge RSC path strings.
+  useEffect(() => {
+    if (!ready || hasCustomClip || !maskSrc) {
+      setPlayableMask(null);
+      return;
+    }
+
+    let cancelled = false;
+    void buildHoleGraphicPlayableMaskFromUrl(maskSrc).then((mask) => {
+      if (!cancelled) setPlayableMask(mask);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, hasCustomClip, maskSrc, yardageArcs]);
 
   const arcPaths = useMemo(() => {
-    if (!mediaRect) return [];
+    if (!mediaRect || !ready) return [];
 
-    // Preferred: server already clipped paths to the playable area.
-    if (yardageArcRender?.paths?.length) {
+    const pin = yardageArcs.pin;
+    const canClipLocally = hasCustomClip || playableMask != null;
+
+    // Prefer locally clipped paths once the mask (or custom clip) is ready.
+    if (canClipLocally) {
+      const center = pinToMediaPx(pin, mediaRect.width, mediaRect.height);
+      const isAllowed = resolveArcAllowTest(
+        yardageArcs.arcClip,
+        playableMask,
+        mediaRect.width,
+        mediaRect.height,
+      );
+
+      return markers.map((marker, index) => {
+        const radius = yardageMarkerRadiusPx(
+          pin,
+          marker,
+          mediaRect.width,
+          mediaRect.height,
+        );
+        return {
+          key: `${marker.yards}-${index}`,
+          pathD: buildClippedCirclePath(center.x, center.y, radius, isAllowed),
+          labelX: (marker.x / 100) * mediaRect.width,
+          labelY: (marker.y / 100) * mediaRect.height,
+          yards: marker.yards,
+        };
+      });
+    }
+
+    // While the mask loads, use server-precomputed paths if they look valid.
+    if (usableServerRender) {
       return yardageArcRender.paths.map((arc, index) => ({
         key: `${arc.yards}-${index}`,
         pathD: arc.pathD,
@@ -134,18 +219,8 @@ export function YardageArcOverlay({
       }));
     }
 
-    if (!ready) return [];
-
-    // Fallback (dev / missing server render): unclipped or custom-clip only.
-    const pin = yardageArcs.pin;
+    // Last resort: full circles (CSS mask still clips to the hole silhouette).
     const center = pinToMediaPx(pin, mediaRect.width, mediaRect.height);
-    const isAllowed = resolveArcAllowTest(
-      yardageArcs.arcClip,
-      null,
-      mediaRect.width,
-      mediaRect.height,
-    );
-
     return markers.map((marker, index) => {
       const radius = yardageMarkerRadiusPx(
         pin,
@@ -155,36 +230,65 @@ export function YardageArcOverlay({
       );
       return {
         key: `${marker.yards}-${index}`,
-        pathD: buildClippedCirclePath(center.x, center.y, radius, isAllowed),
+        pathD: buildClippedCirclePath(center.x, center.y, radius, null),
         labelX: (marker.x / 100) * mediaRect.width,
         labelY: (marker.y / 100) * mediaRect.height,
         yards: marker.yards,
       };
     });
-  }, [markers, mediaRect, ready, yardageArcRender, yardageArcs]);
+  }, [
+    hasCustomClip,
+    markers,
+    mediaRect,
+    playableMask,
+    ready,
+    usableServerRender,
+    yardageArcRender,
+    yardageArcs,
+  ]);
 
-  if (!visible || !mediaRect) return null;
-  if (!hasServerPaths && !ready) return null;
+  if (!visible || !mediaRect || !ready) return null;
 
-  const viewW = yardageArcRender?.width || mediaRect.width;
-  const viewH = yardageArcRender?.height || mediaRect.height;
-  const pinX =
-    yardageArcRender?.pinX ??
-    (ready ? pinToMediaPx(yardageArcs.pin, mediaRect.width, mediaRect.height).x : 0);
-  const pinY =
-    yardageArcRender?.pinY ??
-    (ready ? pinToMediaPx(yardageArcs.pin, mediaRect.width, mediaRect.height).y : 0);
+  const useServerViewBox = usableServerRender && playableMask == null && !hasCustomClip;
+  const viewW = useServerViewBox ? yardageArcRender.width : mediaRect.width;
+  const viewH = useServerViewBox ? yardageArcRender.height : mediaRect.height;
+  const pinX = useServerViewBox
+    ? yardageArcRender.pinX
+    : pinToMediaPx(yardageArcs.pin, mediaRect.width, mediaRect.height).x;
+  const pinY = useServerViewBox
+    ? yardageArcRender.pinY
+    : pinToMediaPx(yardageArcs.pin, mediaRect.width, mediaRect.height).y;
+
+  // Clip strokes to the hole graphic's alpha so arcs never paint the dark panel,
+  // even if the green mask is late or missing.
+  const layerMaskStyle: CSSProperties | undefined = maskSrc
+    ? {
+        WebkitMaskImage: `url("${maskSrc}")`,
+        maskImage: `url("${maskSrc}")`,
+        WebkitMaskSize: "100% 100%",
+        maskSize: "100% 100%",
+        WebkitMaskRepeat: "no-repeat",
+        maskRepeat: "no-repeat",
+        WebkitMaskPosition: "center",
+        maskPosition: "center",
+        // Prefer alpha so transparent SVG areas fully hide strokes.
+        maskMode: "alpha",
+      }
+    : undefined;
+
+  const layerBoxStyle: CSSProperties = {
+    left: `${mediaRect.left}px`,
+    top: `${mediaRect.top}px`,
+    width: `${mediaRect.width}px`,
+    height: `${mediaRect.height}px`,
+  };
 
   return (
     <div className="course-hole-graphic-yardage-overlay" aria-hidden>
+      {/* Arcs only — masked to hole graphic alpha so strokes never hit the panel */}
       <div
         className="course-hole-graphic-yardage-layer"
-        style={{
-          left: `${mediaRect.left}px`,
-          top: `${mediaRect.top}px`,
-          width: `${mediaRect.width}px`,
-          height: `${mediaRect.height}px`,
-        }}
+        style={{ ...layerBoxStyle, ...layerMaskStyle }}
       >
         <svg
           className="course-hole-graphic-yardage-svg"
@@ -194,7 +298,7 @@ export function YardageArcOverlay({
           preserveAspectRatio="none"
         >
           {arcPaths.map((arc) =>
-            arc.pathD ? (
+            isUsableSvgPath(arc.pathD) ? (
               <path
                 key={arc.key}
                 d={arc.pathD}
@@ -204,7 +308,10 @@ export function YardageArcOverlay({
             ) : null,
           )}
         </svg>
+      </div>
 
+      {/* Labels stay unmasked so markers remain readable */}
+      <div className="course-hole-graphic-yardage-layer" style={layerBoxStyle}>
         <svg
           className="course-hole-graphic-yardage-labels"
           width={mediaRect.width}

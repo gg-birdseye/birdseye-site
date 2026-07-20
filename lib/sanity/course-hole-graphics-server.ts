@@ -88,6 +88,7 @@ export async function courseHoleGraphicsWithArcRenders(
                 center.y,
                 radius,
                 isAllowed,
+                360,
               ),
               labelX: (marker.x / 100) * width,
               labelY: (marker.y / 100) * height,
