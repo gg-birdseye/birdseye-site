@@ -996,6 +996,41 @@ export function ExampleCourseView({
         </div>
       ) : null}
 
+      {/* Pinned outside the inset-0 chrome so iOS scroll-scrub can't shift it */}
+      <div className="course-mobile-bottom-bar pointer-events-auto border-t border-white/10 bg-gradient-to-t from-black/80 via-black/55 to-transparent backdrop-blur-lg max-md:min-h-[var(--course-mobile-bar-h)]">
+        <div className="flex min-w-0 items-center gap-2 overflow-hidden px-3 py-2 md:gap-3 md:px-5 md:py-3">
+          <Link
+            href="/"
+            className="course-mobile-bar-logo flex min-w-0 shrink-0 items-center rounded-md px-1 py-1"
+            aria-label="Birdseye home"
+          >
+            <img
+              src="/logo1.svg"
+              alt="Birdseye"
+              className="h-16 w-auto max-w-[33vw] shrink-0 object-contain brightness-0 invert sm:max-w-none md:h-28"
+            />
+          </Link>
+
+          <div className="course-mobile-progress-wrap relative mx-1 h-3 min-w-0 flex-1 md:mx-3">
+            <div className="absolute bottom-0 left-0 right-0 h-1 rounded-full bg-white/15" />
+            <div
+              ref={progressFillRef}
+              className="absolute bottom-0 h-1 rounded-full"
+              style={{
+                width: "0%",
+                backgroundColor: "#00cdac",
+              }}
+            />
+          </div>
+
+          {hasPanelNav ? (
+            <div className="course-desktop-panel-btns min-w-0 shrink gap-0.5 md:gap-1">
+              {panelNavButtons}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
       {/* CoursePreview-style overlay chrome */}
       <div className="pointer-events-none fixed inset-0 z-30 flex w-full max-w-[100vw] flex-col overflow-x-clip">
         {!hideLegacyChrome ? (
@@ -1153,42 +1188,6 @@ export function ExampleCourseView({
             </div>
           </div>
         ) : null}
-
-        {/* Bottom function bar */}
-        <div className="course-mobile-bottom-bar pointer-events-auto shrink-0 border-t border-white/10 bg-gradient-to-t from-black/80 via-black/55 to-transparent backdrop-blur-lg max-md:min-h-[var(--course-mobile-bar-h)]">
-          <div className="flex min-w-0 items-center gap-2 overflow-hidden px-3 py-2 md:gap-3 md:px-5 md:py-3">
-            <Link
-              href="/"
-              className="course-mobile-bar-logo flex min-w-0 shrink-0 items-center rounded-md px-1 py-1"
-              aria-label="Birdseye home"
-            >
-              <img
-                src="/logo1.svg"
-                alt="Birdseye"
-                className="h-16 w-auto max-w-[33vw] shrink-0 object-contain brightness-0 invert sm:max-w-none md:h-28"
-              />
-            </Link>
-
-            {/* Scroll progress bar */}
-            <div className="course-mobile-progress-wrap relative mx-1 h-3 min-w-0 flex-1 md:mx-3">
-              <div className="absolute bottom-0 left-0 right-0 h-1 rounded-full bg-white/15" />
-              <div
-                ref={progressFillRef}
-                className="absolute bottom-0 h-1 rounded-full"
-                style={{
-                  width: "0%",
-                  backgroundColor: "#00cdac",
-                }}
-              />
-            </div>
-
-            {hasPanelNav ? (
-              <div className="course-desktop-panel-btns min-w-0 shrink gap-0.5 md:gap-1">
-                {panelNavButtons}
-              </div>
-            ) : null}
-          </div>
-        </div>
       </div>
     </div>
   );
