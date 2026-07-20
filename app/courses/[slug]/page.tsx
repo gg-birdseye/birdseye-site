@@ -10,7 +10,6 @@ import {
   courseContactInfo,
   courseHasPlayableVideo,
   courseHoleDescriptions,
-  courseHoleGraphicsWithMasks,
   courseHolePlaybacks,
   courseLogoSrc,
   coursePagePanels,
@@ -19,6 +18,7 @@ import {
   courseSeoOgImageSrc,
   getCourseBySlug,
 } from "@/lib/sanity/courses";
+import { courseHoleGraphicsWithMasks } from "@/lib/sanity/course-hole-graphics-server";
 import { buildGolfCourseJsonLd } from "@/lib/seo/course-json-ld";
 import { resolveCourseSeo } from "@/lib/seo/course-meta";
 import { absoluteUrl } from "@/lib/seo/site";
