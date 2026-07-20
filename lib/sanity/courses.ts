@@ -485,6 +485,28 @@ function resolveYardageArcs(hole: HoleFlyoverDoc): YardageArcsData | undefined {
   };
 }
 
+/**
+ * Serve Sanity file assets via our own origin so browsers can load them
+ * without hitting cdn.sanity.io's CORS 403 on Origin-bearing requests.
+ */
+function proxiedSanityFileUrl(src: string): string {
+  try {
+    const parsed = new URL(src);
+    const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID?.trim();
+    if (
+      parsed.protocol !== "https:" ||
+      parsed.hostname !== "cdn.sanity.io" ||
+      !projectId ||
+      !parsed.pathname.startsWith(`/files/${projectId}/`)
+    ) {
+      return src;
+    }
+    return `/api/sanity-file?url=${encodeURIComponent(src)}`;
+  } catch {
+    return src;
+  }
+}
+
 function resolveHoleGraphic(hole: HoleFlyoverDoc): HoleGraphic | undefined {
   const asset = hole.holeGraphic?.asset;
   const src = asset?.url?.trim();
@@ -496,7 +518,7 @@ function resolveHoleGraphic(hole: HoleFlyoverDoc): HoleGraphic | undefined {
     src.toLowerCase().endsWith(".svg");
 
   return {
-    src,
+    src: proxiedSanityFileUrl(src),
     alt: hole.holeGraphic?.alt?.trim() || undefined,
     isSvg,
   };
