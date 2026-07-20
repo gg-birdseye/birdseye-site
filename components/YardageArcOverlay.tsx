@@ -15,6 +15,7 @@ import {
   arcClipIsReady,
   buildClippedCirclePath,
   buildHoleGraphicPlayableMaskFromUrl,
+  deserializePlayableMask,
   pinToMediaPx,
   resolveArcAllowTest,
   sortMarkersByYards,
@@ -26,8 +27,10 @@ import {
 
 type YardageArcOverlayProps = {
   contentRef: RefObject<HTMLElement | null>;
-  /** Hole graphic URL (proxy or CDN) — used to fetch the server playable mask. */
+  /** Hole graphic URL — fallback client mask fetch if server mask missing. */
   graphicSrc?: string | null;
+  /** Precomputed mask from the course page (preferred). */
+  playableMask?: { width: number; height: number; data: string } | null;
   yardageArcs?: YardageArcsData | null;
   visible?: boolean;
 };
@@ -38,7 +41,6 @@ function readImageDimensions(
   if (img.naturalWidth > 0 && img.naturalHeight > 0) {
     return { width: img.naturalWidth, height: img.naturalHeight };
   }
-  // viewBox-only SVGs can report 0×0; fall back so arcs still layout.
   return { width: 480, height: 1080 };
 }
 
@@ -55,14 +57,23 @@ function findHoleGraphicImage(
 export function YardageArcOverlay({
   contentRef,
   graphicSrc,
+  playableMask: playableMaskProp,
   yardageArcs,
   visible = true,
 }: YardageArcOverlayProps) {
   const [mediaRect, setMediaRect] = useState<ContainedMediaRect | null>(null);
-  const [playableMask, setPlayableMask] =
-    useState<HoleGraphicPlayableMask | null>(null);
+  const [fetchedMask, setFetchedMask] = useState<HoleGraphicPlayableMask | null>(
+    null,
+  );
   const ready = yardageArcsAreReady(yardageArcs);
   const hasCustomClip = ready && arcClipIsReady(yardageArcs.arcClip);
+
+  const embeddedMask = useMemo(() => {
+    if (!playableMaskProp) return null;
+    return deserializePlayableMask(playableMaskProp);
+  }, [playableMaskProp]);
+
+  const playableMask = embeddedMask ?? fetchedMask;
 
   const markers = useMemo(
     () => (ready ? sortMarkersByYards(yardageArcs.markers) : []),
@@ -90,7 +101,6 @@ export function YardageArcOverlay({
     );
   }, [contentRef]);
 
-  // Layout: track the hole graphic box.
   useEffect(() => {
     if (!ready) {
       setMediaRect(null);
@@ -122,30 +132,28 @@ export function YardageArcOverlay({
     };
   }, [contentRef, ready, updateMediaRect, yardageArcs, graphicSrc]);
 
-  // Mask: fetch from server API using the graphic URL prop (not DOM img state).
+  // Fallback only when the page did not embed a mask (e.g. older data path).
   useEffect(() => {
-    if (!ready || hasCustomClip) {
-      setPlayableMask(null);
+    if (!ready || hasCustomClip || embeddedMask) {
+      setFetchedMask(null);
       return;
     }
 
     const src = graphicSrc?.trim();
     if (!src) {
-      setPlayableMask(null);
+      setFetchedMask(null);
       return;
     }
 
     let cancelled = false;
-    setPlayableMask(null);
-
     void buildHoleGraphicPlayableMaskFromUrl(src).then((mask) => {
-      if (!cancelled) setPlayableMask(mask);
+      if (!cancelled) setFetchedMask(mask);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [ready, hasCustomClip, graphicSrc]);
+  }, [ready, hasCustomClip, embeddedMask, graphicSrc]);
 
   const arcPaths = useMemo(() => {
     if (!ready || !mediaRect) return [];

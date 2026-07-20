@@ -10,7 +10,7 @@ import {
   courseContactInfo,
   courseHasPlayableVideo,
   courseHoleDescriptions,
-  courseHoleGraphics,
+  courseHoleGraphicsWithMasks,
   courseHolePlaybacks,
   courseLogoSrc,
   coursePagePanels,
@@ -101,6 +101,7 @@ export default async function CoursePage({ params }: Props) {
   if (!courseHasPlayableVideo(course)) notFound();
 
   const holePlaybacks = courseHolePlaybacks(course);
+  const holeGraphics = await courseHoleGraphicsWithMasks(course);
   const primary = coursePrimaryPlayback(course, 1);
   if (!primary) notFound();
 
@@ -141,7 +142,7 @@ export default async function CoursePage({ params }: Props) {
           pagePanels={coursePagePanels(course)}
           scorecardData={courseScorecardData(course, course.holeCount ?? 18)}
           aerialMap={courseAerialMap(course)}
-          holeGraphics={courseHoleGraphics(course)}
+          holeGraphics={holeGraphics}
           contact={courseContactInfo(course)}
           holeDescriptions={courseHoleDescriptions(course)}
         />

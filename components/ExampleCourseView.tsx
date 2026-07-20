@@ -222,6 +222,18 @@ export function ExampleCourseView({
     }
     return map;
   }, [holeGraphicsProp, holeVideos]);
+  const playableMaskMap = useMemo(() => {
+    const map = new Map<
+      number,
+      { width: number; height: number; data: string }
+    >();
+    for (const entry of holeGraphicsProp ?? []) {
+      if (entry.playableMask) {
+        map.set(entry.holeNumber, entry.playableMask);
+      }
+    }
+    return map;
+  }, [holeGraphicsProp]);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -957,6 +969,7 @@ export function ExampleCourseView({
         holeGraphic={holeGraphicMap.get(activeHole)}
         cameraPath={cameraPathMap.get(activeHole)}
         yardageArcs={yardageArcsMap.get(activeHole)}
+        playableMask={playableMaskMap.get(activeHole)}
         flyoverProgress={flyoverProgress}
         onPathSeek={goToFlyoverProgress}
         useDesktopTopBar={isDesktopLayout}
