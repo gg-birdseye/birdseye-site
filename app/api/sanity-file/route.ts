@@ -58,6 +58,9 @@ export async function GET(request: Request) {
     "Cache-Control",
     "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800",
   );
+  // Allow canvas readback when the <img> uses crossOrigin="anonymous".
+  headers.set("Access-Control-Allow-Origin", "*");
+  headers.set("Cross-Origin-Resource-Policy", "cross-origin");
 
   return new NextResponse(upstream.body, { status: 200, headers });
 }

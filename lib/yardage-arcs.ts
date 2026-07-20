@@ -241,10 +241,20 @@ function samplePlayableMask(
  * Eroded slightly so arcs stop inside the green edge.
  */
 export function buildHoleGraphicPlayableMask(
-  image: HTMLImageElement,
+  image: CanvasImageSource & { width?: number; height?: number },
+  explicitWidth?: number,
+  explicitHeight?: number,
 ): HoleGraphicPlayableMask | null {
-  const width = image.naturalWidth;
-  const height = image.naturalHeight;
+  const width =
+    explicitWidth ??
+    (image instanceof HTMLImageElement
+      ? image.naturalWidth
+      : Number(image.width) || 0);
+  const height =
+    explicitHeight ??
+    (image instanceof HTMLImageElement
+      ? image.naturalHeight
+      : Number(image.height) || 0);
   if (!width || !height) return null;
 
   try {
@@ -254,7 +264,7 @@ export function buildHoleGraphicPlayableMask(
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) return null;
 
-    ctx.drawImage(image, 0, 0);
+    ctx.drawImage(image, 0, 0, width, height);
     const imageData = ctx.getImageData(0, 0, width, height);
     const pixels = imageData.data;
     const raw = new Uint8Array(width * height);
@@ -280,6 +290,56 @@ export function buildHoleGraphicPlayableMask(
       height,
       data: erodeBinaryMask(raw, width, height, erodeRadius),
     };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetch a same-origin (or CORS-enabled) graphic and build a playable mask.
+ * Avoids tainted-canvas failures from CDN images loaded without CORS.
+ */
+export async function buildHoleGraphicPlayableMaskFromUrl(
+  src: string,
+): Promise<HoleGraphicPlayableMask | null> {
+  if (!src || typeof fetch === "undefined") return null;
+
+  try {
+    const response = await fetch(src, { mode: "cors", credentials: "omit" });
+    if (!response.ok) return null;
+
+    const blob = await response.blob();
+
+    if (typeof createImageBitmap === "function") {
+      try {
+        const bitmap = await createImageBitmap(blob);
+        try {
+          const mask = buildHoleGraphicPlayableMask(
+            bitmap,
+            bitmap.width,
+            bitmap.height,
+          );
+          if (mask) return mask;
+        } finally {
+          bitmap.close();
+        }
+      } catch {
+        // SVG blobs are not always supported by createImageBitmap.
+      }
+    }
+
+    const objectUrl = URL.createObjectURL(blob);
+    try {
+      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("Failed to decode hole graphic"));
+        img.src = objectUrl;
+      });
+      return buildHoleGraphicPlayableMask(image);
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
   } catch {
     return null;
   }

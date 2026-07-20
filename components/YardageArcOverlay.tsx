@@ -15,6 +15,7 @@ import {
   arcClipIsReady,
   buildClippedCirclePath,
   buildHoleGraphicPlayableMask,
+  buildHoleGraphicPlayableMaskFromUrl,
   pinToMediaPx,
   resolveArcAllowTest,
   sortMarkersByYards,
@@ -89,14 +90,39 @@ export function YardageArcOverlay({
   const updatePlayableMask = useCallback(() => {
     if (hasCustomClip) {
       setPlayableMask(null);
-      return;
+      return () => {};
     }
     const img = findHoleGraphicImage(contentRef.current);
-    if (!img || !img.complete || img.naturalWidth < 1) {
+    if (!img || !img.complete) {
       setPlayableMask(null);
-      return;
+      return () => {};
     }
-    setPlayableMask(buildHoleGraphicPlayableMask(img));
+
+    const src = img.currentSrc || img.src;
+    if (!src) {
+      setPlayableMask(null);
+      return () => {};
+    }
+
+    // Prefer fetching pixels via URL (same-origin proxy) so CDN CORS
+    // never taints the canvas. Fall back to the <img> element if needed.
+    let cancelled = false;
+    void buildHoleGraphicPlayableMaskFromUrl(src).then((mask) => {
+      if (cancelled) return;
+      if (mask) {
+        setPlayableMask(mask);
+        return;
+      }
+      if (img.naturalWidth > 0) {
+        setPlayableMask(buildHoleGraphicPlayableMask(img));
+      } else {
+        setPlayableMask(null);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [contentRef, hasCustomClip]);
 
   useEffect(() => {
@@ -107,7 +133,7 @@ export function YardageArcOverlay({
     }
 
     updateMediaRect();
-    updatePlayableMask();
+    let cancelMask = updatePlayableMask();
     window.addEventListener("resize", updateMediaRect);
 
     const container = contentRef.current;
@@ -115,7 +141,8 @@ export function YardageArcOverlay({
 
     const onImageLoad = () => {
       updateMediaRect();
-      updatePlayableMask();
+      cancelMask();
+      cancelMask = updatePlayableMask();
     };
 
     if (img) {
@@ -135,6 +162,7 @@ export function YardageArcOverlay({
       window.removeEventListener("resize", updateMediaRect);
       img?.removeEventListener("load", onImageLoad);
       resizeObserver?.disconnect();
+      cancelMask();
     };
   }, [contentRef, ready, updatePlayableMask, updateMediaRect, yardageArcs]);
 
