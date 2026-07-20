@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "playbackId": "introvid",
+  "fps": 12,
+  "frameCount": 58,
+  "width": 1280,
+  "height": 720,
+  "format": "webp",
+  "baseUrl": "/frames/introvid"
+}
