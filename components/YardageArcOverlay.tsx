@@ -14,10 +14,10 @@ import {
 import {
   arcClipIsReady,
   buildClippedCirclePath,
-  buildHoleGraphicPlayableMaskFromUrl,
   deserializePlayableMask,
   pinToMediaPx,
   resolveArcAllowTest,
+  sanityFileUrlFromGraphicSrc,
   sortMarkersByYards,
   yardageArcsAreReady,
   yardageMarkerRadiusPx,
@@ -27,17 +27,17 @@ import {
 
 type YardageArcOverlayProps = {
   contentRef: RefObject<HTMLElement | null>;
-  /** Hole graphic URL — fallback client mask fetch if server mask missing. */
+  /** Proxied or CDN hole graphic URL. */
   graphicSrc?: string | null;
-  /** Precomputed mask from the course page (preferred). */
-  playableMask?: { width: number; height: number; data: string } | null;
+  /** Original Sanity CDN URL when available. */
+  graphicCdnSrc?: string | null;
   yardageArcs?: YardageArcsData | null;
   visible?: boolean;
 };
 
 function readImageDimensions(
   img: HTMLImageElement,
-): { width: number; height: number } | null {
+): { width: number; height: number } {
   if (img.naturalWidth > 0 && img.naturalHeight > 0) {
     return { width: img.naturalWidth, height: img.naturalHeight };
   }
@@ -57,48 +57,50 @@ function findHoleGraphicImage(
 export function YardageArcOverlay({
   contentRef,
   graphicSrc,
-  playableMask: playableMaskProp,
+  graphicCdnSrc,
   yardageArcs,
   visible = true,
 }: YardageArcOverlayProps) {
   const [mediaRect, setMediaRect] = useState<ContainedMediaRect | null>(null);
-  const [fetchedMask, setFetchedMask] = useState<HoleGraphicPlayableMask | null>(
-    null,
-  );
+  const [playableMask, setPlayableMask] =
+    useState<HoleGraphicPlayableMask | null>(null);
   const ready = yardageArcsAreReady(yardageArcs);
   const hasCustomClip = ready && arcClipIsReady(yardageArcs.arcClip);
-
-  const embeddedMask = useMemo(() => {
-    if (!playableMaskProp) return null;
-    return deserializePlayableMask(playableMaskProp);
-  }, [playableMaskProp]);
-
-  const playableMask = embeddedMask ?? fetchedMask;
 
   const markers = useMemo(
     () => (ready ? sortMarkersByYards(yardageArcs.markers) : []),
     [ready, yardageArcs],
   );
 
+  const maskRequestUrl = useMemo(() => {
+    const cdn =
+      graphicCdnSrc?.trim() ||
+      sanityFileUrlFromGraphicSrc(graphicSrc?.trim() || "");
+    if (!cdn) return null;
+    return `/api/hole-graphic-mask?url=${encodeURIComponent(cdn)}`;
+  }, [graphicCdnSrc, graphicSrc]);
+
   const updateMediaRect = useCallback(() => {
     const container = contentRef.current;
-    if (!container) return;
-
     const img = findHoleGraphicImage(container);
-    if (!img) return;
+    if (!container || !img) return;
 
-    const containerRect = container.getBoundingClientRect();
+    // Measure against the <img> box (inside padding), not the padded container.
     const dimensions = readImageDimensions(img);
-    if (!dimensions) return;
-
-    setMediaRect(
-      containedMediaRect(
-        containerRect.width,
-        containerRect.height,
-        dimensions.width,
-        dimensions.height,
-      ),
+    const fitted = containedMediaRect(
+      img.clientWidth,
+      img.clientHeight,
+      dimensions.width,
+      dimensions.height,
     );
+    if (!fitted) return;
+
+    setMediaRect({
+      left: img.offsetLeft + fitted.left,
+      top: img.offsetTop + fitted.top,
+      width: fitted.width,
+      height: fitted.height,
+    });
   }, [contentRef]);
 
   useEffect(() => {
@@ -124,6 +126,9 @@ export function YardageArcOverlay({
         ? new ResizeObserver(() => updateMediaRect())
         : null;
     if (container) resizeObserver?.observe(container);
+    if (img && typeof ResizeObserver !== "undefined") {
+      resizeObserver?.observe(img);
+    }
 
     return () => {
       window.removeEventListener("resize", updateMediaRect);
@@ -132,28 +137,57 @@ export function YardageArcOverlay({
     };
   }, [contentRef, ready, updateMediaRect, yardageArcs, graphicSrc]);
 
-  // Fallback only when the page did not embed a mask (e.g. older data path).
+  // Always load the mask from the API (avoids huge RSC base64 / $ref issues).
   useEffect(() => {
-    if (!ready || hasCustomClip || embeddedMask) {
-      setFetchedMask(null);
-      return;
-    }
-
-    const src = graphicSrc?.trim();
-    if (!src) {
-      setFetchedMask(null);
+    if (!visible || !ready || hasCustomClip || !maskRequestUrl) {
+      setPlayableMask(null);
       return;
     }
 
     let cancelled = false;
-    void buildHoleGraphicPlayableMaskFromUrl(src).then((mask) => {
-      if (!cancelled) setFetchedMask(mask);
-    });
+    const controller = new AbortController();
+
+    void (async () => {
+      try {
+        const response = await fetch(maskRequestUrl, {
+          credentials: "include",
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          if (!cancelled) setPlayableMask(null);
+          return;
+        }
+        const json = (await response.json()) as {
+          width?: number;
+          height?: number;
+          data?: string;
+        };
+        if (cancelled) return;
+        if (
+          typeof json.width === "number" &&
+          typeof json.height === "number" &&
+          typeof json.data === "string"
+        ) {
+          setPlayableMask(
+            deserializePlayableMask({
+              width: json.width,
+              height: json.height,
+              data: json.data,
+            }),
+          );
+        } else {
+          setPlayableMask(null);
+        }
+      } catch {
+        if (!cancelled) setPlayableMask(null);
+      }
+    })();
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
-  }, [ready, hasCustomClip, embeddedMask, graphicSrc]);
+  }, [visible, ready, hasCustomClip, maskRequestUrl]);
 
   const arcPaths = useMemo(() => {
     if (!ready || !mediaRect) return [];

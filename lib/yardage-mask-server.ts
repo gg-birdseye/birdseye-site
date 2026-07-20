@@ -44,20 +44,18 @@ export async function buildPlayableMaskFromSanityUrl(
   const input = Buffer.from(await upstream.arrayBuffer());
 
   try {
-    let pipeline = sharp(input, { density: 144 }).ensureAlpha();
-    const meta = await pipeline.metadata();
+    const meta = await sharp(input, { density: 144 }).metadata();
     const srcW = meta.width ?? 0;
     const srcH = meta.height ?? 0;
 
-    if (srcW > MAX_EDGE || srcH > MAX_EDGE) {
-      pipeline = sharp(input, { density: 144 })
-        .ensureAlpha()
-        .resize({
-          width: MAX_EDGE,
-          height: MAX_EDGE,
-          fit: "inside",
-          withoutEnlargement: true,
-        });
+    let pipeline = sharp(input, { density: 144 }).ensureAlpha();
+    if (srcW > MAX_EDGE || srcH > MAX_EDGE || srcW < 1 || srcH < 1) {
+      pipeline = pipeline.resize({
+        width: MAX_EDGE,
+        height: MAX_EDGE,
+        fit: "inside",
+        withoutEnlargement: srcW >= 1 && srcH >= 1,
+      });
     }
 
     const { data, info } = await pipeline

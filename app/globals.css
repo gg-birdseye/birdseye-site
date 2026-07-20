@@ -2219,7 +2219,7 @@ html.course-hole-selector-grid-open .course-video-menu {
 
 .course-hole-graphic-yardage-overlay {
   position: absolute;
-  inset: 0.25rem;
+  inset: 0;
   pointer-events: none;
   z-index: 1;
 }

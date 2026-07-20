@@ -29,7 +29,6 @@ type HoleGraphicPanelProps = {
   holeGraphic?: HoleGraphic;
   cameraPath?: CameraPathPoint[];
   yardageArcs?: YardageArcsData;
-  playableMask?: { width: number; height: number; data: string };
   flyoverProgress?: number;
   onPathSeek?: (progress: number) => void;
   useDesktopTopBar?: boolean;
@@ -45,7 +44,6 @@ export function HoleGraphicPanel({
   holeGraphic,
   cameraPath,
   yardageArcs,
-  playableMask,
   flyoverProgress = 0,
   onPathSeek,
   useDesktopTopBar = false,
@@ -213,8 +211,8 @@ export function HoleGraphicPanel({
               <YardageArcOverlay
                 contentRef={contentRef}
                 graphicSrc={holeGraphic.src}
+                graphicCdnSrc={holeGraphic.cdnSrc}
                 yardageArcs={yardageArcs}
-                playableMask={playableMask}
                 visible={yardagesVisible}
               />
               <CameraPathOverlay

@@ -34,7 +34,10 @@ export type HoleGraphicDoc = {
 } | null;
 
 export type HoleGraphic = {
+  /** Same-origin proxied URL for display. */
   src: string;
+  /** Original Sanity CDN file URL (server mask / debugging). */
+  cdnSrc?: string;
   alt?: string;
   isSvg: boolean;
 };
@@ -522,6 +525,7 @@ function resolveHoleGraphic(hole: HoleFlyoverDoc): HoleGraphic | undefined {
 
   return {
     src: proxiedSanityFileUrl(src),
+    cdnSrc: src,
     alt: hole.holeGraphic?.alt?.trim() || undefined,
     isSvg,
   };
