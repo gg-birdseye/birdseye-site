@@ -20,19 +20,15 @@ export async function GET(request: Request) {
   }
 
   const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID?.trim();
-  if (!projectId) {
-    return NextResponse.json(
-      { error: "Sanity project is not configured." },
-      { status: 503 },
-    );
-  }
+  const pathMatch = target.pathname.match(/^\/files\/([^/]+)\//);
+  const pathProjectId = pathMatch?.[1];
+  const allowedProjectId = projectId || pathProjectId;
 
   if (target.protocol !== "https:" || target.hostname !== "cdn.sanity.io") {
     return NextResponse.json({ error: "Forbidden host." }, { status: 403 });
   }
 
-  const allowedPrefix = `/files/${projectId}/`;
-  if (!target.pathname.startsWith(allowedPrefix)) {
+  if (!allowedProjectId || !target.pathname.startsWith(`/files/${allowedProjectId}/`)) {
     return NextResponse.json({ error: "Forbidden path." }, { status: 403 });
   }
 

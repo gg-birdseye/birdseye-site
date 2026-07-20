@@ -305,7 +305,18 @@ export async function buildHoleGraphicPlayableMaskFromUrl(
   if (!src || typeof fetch === "undefined") return null;
 
   try {
-    const response = await fetch(src, { mode: "cors", credentials: "omit" });
+    const fetchUrl = toSameOriginSanityProxyUrl(src);
+    const isSameOrigin =
+      fetchUrl.startsWith("/") ||
+      (typeof window !== "undefined" &&
+        fetchUrl.startsWith(`${window.location.origin}/`));
+
+    const response = await fetch(fetchUrl, {
+      mode: "cors",
+      // Vercel Deployment Protection auth is cookie-based. <img> sends cookies
+      // automatically; fetch must too or the proxy 401s only in production.
+      credentials: isSameOrigin ? "same-origin" : "omit",
+    });
     if (!response.ok) return null;
 
     const blob = await response.blob();
@@ -342,6 +353,23 @@ export async function buildHoleGraphicPlayableMaskFromUrl(
     }
   } catch {
     return null;
+  }
+}
+
+/** Rewrite Sanity CDN file URLs through our proxy when needed (client-side). */
+function toSameOriginSanityProxyUrl(src: string): string {
+  try {
+    if (src.startsWith("/api/sanity-file?")) return src;
+    const parsed = new URL(src, typeof window !== "undefined" ? window.location.href : "http://localhost");
+    if (parsed.pathname.startsWith("/api/sanity-file")) {
+      return `${parsed.pathname}${parsed.search}`;
+    }
+    if (parsed.hostname === "cdn.sanity.io" && parsed.pathname.startsWith("/files/")) {
+      return `/api/sanity-file?url=${encodeURIComponent(parsed.toString())}`;
+    }
+    return src;
+  } catch {
+    return src;
   }
 }
 

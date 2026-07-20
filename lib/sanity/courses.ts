@@ -489,18 +489,21 @@ function resolveYardageArcs(hole: HoleFlyoverDoc): YardageArcsData | undefined {
  * Serve Sanity file assets via our own origin so browsers can load them
  * without hitting cdn.sanity.io's CORS 403 on Origin-bearing requests.
  */
-function proxiedSanityFileUrl(src: string): string {
+export function proxiedSanityFileUrl(src: string): string {
   try {
     const parsed = new URL(src);
-    const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID?.trim();
-    if (
-      parsed.protocol !== "https:" ||
-      parsed.hostname !== "cdn.sanity.io" ||
-      !projectId ||
-      !parsed.pathname.startsWith(`/files/${projectId}/`)
-    ) {
+    if (parsed.protocol !== "https:" || parsed.hostname !== "cdn.sanity.io") {
       return src;
     }
+    // /files/{projectId}/...
+    const match = parsed.pathname.match(/^\/files\/([^/]+)\//);
+    if (!match) return src;
+
+    const pathProjectId = match[1];
+    const configuredId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID?.trim();
+    // Prefer configured id when present; otherwise trust the CDN path.
+    if (configuredId && pathProjectId !== configuredId) return src;
+
     return `/api/sanity-file?url=${encodeURIComponent(src)}`;
   } catch {
     return src;
