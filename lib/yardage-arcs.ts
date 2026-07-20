@@ -242,7 +242,7 @@ function samplePlayableMask(
  * Safe for browser and Node (no DOM).
  */
 export function buildPlayableMaskFromRgba(
-  pixels: Uint8Array | Buffer,
+  pixels: ArrayLike<number>,
   width: number,
   height: number,
   channels = 4,
@@ -252,10 +252,10 @@ export function buildPlayableMaskFromRgba(
 
   const raw = new Uint8Array(width * height);
   for (let p = 0, i = 0; p < raw.length; p += 1, i += channels) {
-    const r = pixels[i];
-    const g = pixels[i + 1];
-    const b = pixels[i + 2];
-    const a = channels >= 4 ? pixels[i + 3] : 255;
+    const r = pixels[i] ?? 0;
+    const g = pixels[i + 1] ?? 0;
+    const b = pixels[i + 2] ?? 0;
+    const a = channels >= 4 ? (pixels[i + 3] ?? 255) : 255;
     raw[p] = isPlayableGreenPixel(r, g, b, a) ? 1 : 0;
   }
 
