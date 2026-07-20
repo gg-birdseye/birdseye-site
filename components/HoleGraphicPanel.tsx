@@ -210,6 +210,7 @@ export function HoleGraphicPanel({
               />
               <YardageArcOverlay
                 contentRef={contentRef}
+                graphicSrc={holeGraphic.src}
                 yardageArcs={yardageArcs}
                 visible={yardagesVisible}
               />
