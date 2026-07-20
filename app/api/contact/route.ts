@@ -4,7 +4,9 @@ import { isDatabaseConfigured } from "@/lib/db";
 import { getDb, leads } from "@/lib/db";
 import { isRecaptchaConfigured, verifyRecaptchaToken } from "@/lib/recaptcha";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY
+  ? new Resend(process.env.RESEND_API_KEY)
+  : null;
 
 type ContactPayload = {
   name?: string;
@@ -92,7 +94,7 @@ export async function POST(request: Request) {
   const from = process.env.RESEND_FROM_EMAIL;
   const to = process.env.CONTACT_TO_EMAIL;
 
-  if (!process.env.RESEND_API_KEY || !from || !to) {
+  if (!resend || !from || !to) {
     return NextResponse.json(
       { error: "Contact form is not configured." },
       { status: 503 },

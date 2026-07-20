@@ -619,7 +619,6 @@ export function YardageArcEditor(props: ObjectInputProps) {
             ref={mediaRef}
             src={mediaUrl}
             alt={holeGraphic?.alt ?? 'Hole graphic preview'}
-            crossOrigin="anonymous"
             onLoad={handleMediaLoad}
             style={{
               width: '100%',
@@ -629,7 +628,6 @@ export function YardageArcEditor(props: ObjectInputProps) {
               display: 'block',
             }}
           />
-
           {mediaRect ? (
             <>
               <Box

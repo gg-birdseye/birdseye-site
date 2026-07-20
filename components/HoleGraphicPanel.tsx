@@ -204,7 +204,6 @@ export function HoleGraphicPanel({
                 src={holeGraphic.src}
                 alt={holeGraphic.alt ?? `Hole ${holeNumber} layout`}
                 className="course-hole-graphic-panel-media"
-                crossOrigin="anonymous"
                 onLoad={() => {
                   window.dispatchEvent(new Event("resize"));
                 }}
