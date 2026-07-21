@@ -1993,6 +1993,9 @@ html.course-hole-selector-grid-open .course-video-menu {
   width: 100% !important;
   height: 100% !important;
   overflow: hidden !important;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /* Size to the map graphic (not the viewport). Forcing 100% broke centering and
@@ -2086,8 +2089,8 @@ html.course-hole-selector-grid-open .course-video-menu {
   font-weight: 700;
   line-height: 1;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
-  pointer-events: auto;
-  cursor: pointer;
+  /* Visual only — taps are hit-tested on the viewport so pinch isn't stolen. */
+  pointer-events: none;
   transition:
     transform 120ms ease,
     background-color 120ms ease,

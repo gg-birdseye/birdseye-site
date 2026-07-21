@@ -200,6 +200,27 @@ function ScorecardLockedYAxis({
   );
 }
 
+function pinScorecardBaseline(instance: {
+  wrapperComponent: HTMLDivElement | null;
+  contentComponent: HTMLDivElement | null;
+  setState: (scale: number, positionX: number, positionY: number) => void;
+  state: { scale: number; positionX: number; positionY: number };
+}) {
+  const wrapper = instance.wrapperComponent;
+  const content = instance.contentComponent;
+  if (!wrapper || !content) return;
+
+  const wrapperH = wrapper.clientHeight;
+  const contentH = content.offsetHeight;
+  if (wrapperH <= 0 || contentH <= 0) return;
+
+  const { scale, positionX, positionY } = instance.state;
+  const pinnedY = wrapperH - contentH * scale;
+  if (Math.abs(positionY - pinnedY) < 0.35) return;
+
+  instance.setState(scale, positionX, pinnedY);
+}
+
 /**
  * Keeps the chart anchored to the bottom of the zoom viewport so the X-axis
  * stays visible and bars grow upward instead of getting clipped underneath.
@@ -207,22 +228,14 @@ function ScorecardLockedYAxis({
 function ScorecardPinBaselineToBottom() {
   const correctingRef = useRef(false);
 
-  useTransformEffect(({ state, instance }) => {
-    if (correctingRef.current) return;
-
-    const wrapper = instance.wrapperComponent;
-    const content = instance.contentComponent;
-    if (!wrapper || !content) return;
-
-    const wrapperH = wrapper.clientHeight;
-    const contentH = content.offsetHeight;
-    if (wrapperH <= 0 || contentH <= 0) return;
-
-    const pinnedY = wrapperH - contentH * state.scale;
-    if (Math.abs(state.positionY - pinnedY) < 0.35) return;
+  useTransformEffect(({ instance }) => {
+    // While pinching, the library positions from the touch midpoint. Forcing Y
+    // every frame fights that math and makes pinch zoom feel broken. onPinchStop
+    // re-pins after the gesture.
+    if (correctingRef.current || instance.isPinching) return;
 
     correctingRef.current = true;
-    instance.setState(state.scale, state.positionX, pinnedY);
+    pinScorecardBaseline(instance);
     correctingRef.current = false;
   });
 
@@ -840,11 +853,8 @@ export function ScorecardChartOverlay({
                       // Chrome/macOS trackpad "pinch" arrives as ctrl+wheel.
                       // wheelDisabled keeps normal scrolling from zooming.
                       wheel={{ step: 0.12, wheelDisabled: true }}
-                      pinch={{ step: 4, disabled: false }}
-                      doubleClick={{
-                        mode: "toggle",
-                        step: Math.max(0.25, maxZoomScale - 1),
-                      }}
+                      pinch={{ step: 5, disabled: false }}
+                      doubleClick={{ disabled: true }}
                       panning={{
                         velocityDisabled: true,
                         lockAxisY: true,
@@ -852,6 +862,9 @@ export function ScorecardChartOverlay({
                       // Prevent the library from vertically re-centering after pinch.
                       autoAlignment={{ disabled: true }}
                       zoomAnimation={{ disabled: true }}
+                      onPinchStop={(ref) => {
+                        pinScorecardBaseline(ref.instance);
+                      }}
                     >
                       <ScorecardPinBaselineToBottom />
                       <ScorecardLockedYAxis
@@ -870,7 +883,7 @@ export function ScorecardChartOverlay({
                     </TransformWrapper>
                   </div>
                   <p className="course-scorecard-chart-zoom-hint">
-                    Pinch or use + / − · Drag sideways · Double-tap to enlarge
+                    Pinch or use + / − · Drag sideways
                   </p>
                 </div>
               ) : (

@@ -42,7 +42,6 @@ function AerialHotspotOverlay({
   showHoleMarkers,
   activeHole,
   rotation,
-  onHotspotClick,
   layoutKey,
 }: {
   viewportRef: React.RefObject<HTMLDivElement | null>;
@@ -51,7 +50,6 @@ function AerialHotspotOverlay({
   showHoleMarkers: boolean;
   activeHole?: number;
   rotation: number;
-  onHotspotClick: (event: ReactPointerEvent<HTMLButtonElement>, hole: number) => void;
   layoutKey: string | null;
 }) {
   const [positions, setPositions] = useState<Record<number, HotspotScreenPosition>>({});
@@ -102,27 +100,23 @@ function AerialHotspotOverlay({
   if (!showHoleMarkers) return null;
 
   return (
-    <div className="course-aerial-hotspot-overlay">
+    <div className="course-aerial-hotspot-overlay" aria-hidden>
       {hotspots.map((hotspot) => {
         const position = positions[hotspot.holeNumber];
         if (!position) return null;
 
         const isActive = activeHole === hotspot.holeNumber;
         return (
-          <button
+          <span
             key={hotspot.holeNumber}
-            type="button"
             className={`course-aerial-hotspot${isActive ? " course-aerial-hotspot-active" : ""}`}
             style={{
               left: `${position.x}px`,
               top: `${position.y}px`,
             }}
-            aria-label={`Go to hole ${hotspot.holeNumber}`}
-            aria-current={isActive ? "true" : undefined}
-            onPointerUp={(event) => onHotspotClick(event, hotspot.holeNumber)}
           >
             {hotspot.holeNumber}
-          </button>
+          </span>
         );
       })}
     </div>
@@ -154,6 +148,18 @@ function touchAngle(touches: TouchList): number {
   return Math.atan2(dy, dx);
 }
 
+function applyRotateLayerTransform(
+  layer: HTMLDivElement | null,
+  degrees: number,
+) {
+  if (!layer) return;
+  layer.style.transform = degrees ? `rotate(${degrees}deg)` : "";
+}
+
+/** Hit radius for selecting a hole marker via viewport tap (hotspots don't capture touches). */
+const HOTSPOT_TAP_RADIUS_PX = 32;
+const TAP_MOVE_THRESHOLD_PX = 14;
+
 function AerialMapViewport({
   aerialMap,
   hotspots,
@@ -166,6 +172,7 @@ function AerialMapViewport({
   shiftRotating,
   setShiftRotating,
   shiftRotateStart,
+  rotateLayerRef,
 }: {
   aerialMap: CourseAerialMapData;
   hotspots: CourseAerialMapHotspot[];
@@ -178,12 +185,18 @@ function AerialMapViewport({
   shiftRotating: boolean;
   setShiftRotating: React.Dispatch<React.SetStateAction<boolean>>;
   shiftRotateStart: React.MutableRefObject<{ angle: number; rotation: number } | null>;
+  rotateLayerRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const mediaRef = useRef<HTMLImageElement | HTMLVideoElement>(null);
   const markerRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const [mediaRect, setMediaRect] = useState<ContainedMediaRect | null>(null);
   const { centerView } = useControls();
+
+  // Keep the rotate layer in sync when rotation changes from buttons / Shift-drag.
+  useEffect(() => {
+    applyRotateLayerTransform(rotateLayerRef.current, rotation);
+  }, [rotation, rotateLayerRef]);
 
   const updateMediaRect = useCallback(() => {
     const viewport = viewportRef.current;
@@ -229,16 +242,49 @@ function AerialMapViewport({
     return () => window.cancelAnimationFrame(frame);
   }, [centerView, mediaRect]);
 
-  const handleHotspotClick = useCallback(
-    (event: ReactPointerEvent<HTMLButtonElement>, hole: number) => {
-      event.stopPropagation();
-      onHoleSelect?.(hole);
+  const pointerStartRef = useRef<{
+    pointerId: number;
+    x: number;
+    y: number;
+  } | null>(null);
+  const ignoreTapRef = useRef(false);
+
+  const selectHoleAtPoint = useCallback(
+    (clientX: number, clientY: number) => {
+      if (!onHoleSelect || !showHoleMarkers) return;
+      let bestHole: number | null = null;
+      let bestDist = HOTSPOT_TAP_RADIUS_PX;
+
+      for (const hotspot of hotspots) {
+        const marker = markerRefs.current[hotspot.holeNumber];
+        if (!marker) continue;
+        const rect = marker.getBoundingClientRect();
+        const dist = Math.hypot(
+          clientX - (rect.left + rect.width / 2),
+          clientY - (rect.top + rect.height / 2),
+        );
+        if (dist <= bestDist) {
+          bestDist = dist;
+          bestHole = hotspot.holeNumber;
+        }
+      }
+
+      if (bestHole != null) onHoleSelect(bestHole);
     },
-    [onHoleSelect],
+    [hotspots, onHoleSelect, showHoleMarkers],
   );
 
   const handleShiftRotatePointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.isPrimary) {
+        pointerStartRef.current = {
+          pointerId: event.pointerId,
+          x: event.clientX,
+          y: event.clientY,
+        };
+        ignoreTapRef.current = false;
+      }
+
       if (!shiftHeld || event.button !== 0) return;
       const viewport = viewportRef.current;
       if (!viewport) return;
@@ -251,6 +297,7 @@ function AerialMapViewport({
         rotation,
       };
       setShiftRotating(true);
+      ignoreTapRef.current = true;
       event.currentTarget.setPointerCapture(event.pointerId);
       event.preventDefault();
     },
@@ -259,6 +306,16 @@ function AerialMapViewport({
 
   const handleShiftRotatePointerMove = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
+      const start = pointerStartRef.current;
+      if (
+        start &&
+        event.pointerId === start.pointerId &&
+        Math.hypot(event.clientX - start.x, event.clientY - start.y) >
+          TAP_MOVE_THRESHOLD_PX
+      ) {
+        ignoreTapRef.current = true;
+      }
+
       if (!shiftRotating || !shiftRotateStart.current) return;
       const viewport = viewportRef.current;
       if (!viewport) return;
@@ -274,15 +331,44 @@ function AerialMapViewport({
     [setRotation, shiftRotateStart, shiftRotating],
   );
 
-  const handleShiftRotatePointerUp = useCallback(
+  const handleViewportPointerUp = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (!shiftRotating) return;
-      shiftRotateStart.current = null;
-      setShiftRotating(false);
-      event.currentTarget.releasePointerCapture(event.pointerId);
+      if (shiftRotating) {
+        shiftRotateStart.current = null;
+        setShiftRotating(false);
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+
+      const start = pointerStartRef.current;
+      const shouldSelect =
+        start != null &&
+        event.pointerId === start.pointerId &&
+        !ignoreTapRef.current &&
+        !shiftHeld &&
+        Math.hypot(event.clientX - start.x, event.clientY - start.y) <=
+          TAP_MOVE_THRESHOLD_PX;
+
+      pointerStartRef.current = null;
+
+      if (shouldSelect) {
+        selectHoleAtPoint(event.clientX, event.clientY);
+      }
     },
-    [setShiftRotating, shiftRotateStart, shiftRotating],
+    [selectHoleAtPoint, setShiftRotating, shiftHeld, shiftRotateStart, shiftRotating],
   );
+
+  // Multi-touch (pinch) should never count as a hole tap.
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (event.touches.length >= 2) ignoreTapRef.current = true;
+    };
+
+    viewport.addEventListener("touchstart", onTouchStart, { passive: true });
+    return () => viewport.removeEventListener("touchstart", onTouchStart);
+  }, []);
 
   const hasHotspots = hotspots.length > 0 && Boolean(onHoleSelect);
   const mediaReady =
@@ -304,19 +390,14 @@ function AerialMapViewport({
       className={`course-aerial-interactive-viewport${shiftHeld ? " course-aerial-interactive-viewport-rotate" : ""}`}
       onPointerDown={handleShiftRotatePointerDown}
       onPointerMove={handleShiftRotatePointerMove}
-      onPointerUp={handleShiftRotatePointerUp}
-      onPointerCancel={handleShiftRotatePointerUp}
+      onPointerUp={handleViewportPointerUp}
+      onPointerCancel={handleViewportPointerUp}
     >
       <TransformComponent
         wrapperClass="course-aerial-transform-wrapper"
         contentClass="course-aerial-transform-content"
       >
-        <div
-          className="course-aerial-map-rotate-layer"
-          style={{
-            transform: rotation ? `rotate(${rotation}deg)` : undefined,
-          }}
-        >
+        <div ref={rotateLayerRef} className="course-aerial-map-rotate-layer">
           <div
             className={`course-aerial-map-stage${mediaReady ? "" : " course-aerial-map-stage-loading"}`}
             style={
@@ -383,7 +464,6 @@ function AerialMapViewport({
           showHoleMarkers={showHoleMarkers}
           activeHole={activeHole}
           rotation={rotation}
-          onHotspotClick={handleHotspotClick}
           layoutKey={mediaReady ? `${mediaRect.width}x${mediaRect.height}` : null}
         />
       ) : null}
@@ -402,8 +482,9 @@ export function InteractiveAerialMap({
   onEnterHoleView,
   onClose,
 }: InteractiveAerialMapProps) {
-  const pinchRotateStart = useRef<{ angle: number; rotation: number } | null>(null);
   const shiftRotateStart = useRef<{ angle: number; rotation: number } | null>(null);
+  const pinchRotateStart = useRef<{ angle: number; rotation: number } | null>(null);
+  const rotateLayerRef = useRef<HTMLDivElement | null>(null);
   const rotationRef = useRef(0);
 
   const [rotation, setRotation] = useState(0);
@@ -485,28 +566,33 @@ export function InteractiveAerialMap({
         centerOnInit
         limitToBounds={false}
         wheel={{ step: 0.08 }}
-        pinch={{ step: 4 }}
+        pinch={{ step: 5 }}
         doubleClick={{ disabled: true }}
         panning={{
           disabled: shiftHeld || shiftRotating,
-          excluded: ["course-aerial-hotspot", "course-aerial-control-btn"],
+          excluded: ["course-aerial-control-btn"],
         }}
         onPinchStart={(_ref, event) => {
-          if (event.touches.length >= 2) {
-            pinchRotateStart.current = {
-              angle: touchAngle(event.touches),
-              rotation: rotationRef.current,
-            };
-          }
+          if (event.touches.length < 2) return;
+          // Twist-rotate via DOM during the gesture (no React setState) so
+          // pinch zoom isn't interrupted by re-renders.
+          pinchRotateStart.current = {
+            angle: touchAngle(event.touches),
+            rotation: rotationRef.current,
+          };
         }}
         onPinch={(_ref, event) => {
           if (!pinchRotateStart.current || event.touches.length < 2) return;
           const angle = touchAngle(event.touches);
-          const delta = ((angle - pinchRotateStart.current.angle) * 180) / Math.PI;
-          setRotation(pinchRotateStart.current.rotation + delta);
+          const delta =
+            ((angle - pinchRotateStart.current.angle) * 180) / Math.PI;
+          const next = pinchRotateStart.current.rotation + delta;
+          rotationRef.current = next;
+          applyRotateLayerTransform(rotateLayerRef.current, next);
         }}
         onPinchStop={() => {
           pinchRotateStart.current = null;
+          setRotation(rotationRef.current);
         }}
       >
         {(api) => (
@@ -588,6 +674,7 @@ export function InteractiveAerialMap({
                 shiftRotating={shiftRotating}
                 setShiftRotating={setShiftRotating}
                 shiftRotateStart={shiftRotateStart}
+                rotateLayerRef={rotateLayerRef}
               />
             </div>
           </div>
