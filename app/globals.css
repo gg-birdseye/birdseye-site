@@ -634,7 +634,8 @@ html.course-hole-selector-grid-open .course-video-menu {
       "spacer";
   }
 
-  .course-mobile-video-stage {
+  /* Course pages only — landing hero keeps full sticky viewport height. */
+  .course-mobile-sticky .course-mobile-video-stage {
     grid-area: video;
     width: 100%;
     height: var(--course-mobile-portrait-video-h);
@@ -647,7 +648,7 @@ html.course-hole-selector-grid-open .course-video-menu {
     width: 100%;
   }
 
-  .course-mobile-video-stage .scrolly-video-course {
+  .course-mobile-sticky .course-mobile-video-stage .scrolly-video-course {
     display: block;
     width: 100%;
     height: 100%;
