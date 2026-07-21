@@ -618,8 +618,8 @@ export function ScrollyVideoSection({
 
       <div ref={trackRef} data-scrolly-track className="relative h-[300vh]">
         <div
-          className={`sticky top-0 h-[100svh] ${
-            mobileFooter ? "course-mobile-sticky" : ""
+          className={`sticky top-0 overflow-hidden bg-black ${
+            mobileFooter ? "h-[100svh] course-mobile-sticky" : "scrolly-hero-sticky"
           }`}
         >
           {mobileFooter ? (
