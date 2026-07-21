@@ -142,12 +142,16 @@ html.hide-scroll-bar::-webkit-scrollbar {
 }
 
 /**
- * Landing hero — use the large viewport on mobile so when the browser
- * chrome slides away the video already extends below the fold (no gap).
+ * Landing hero sticky viewport.
+ * Default: full small viewport. Portrait mobile uses lvh so browser chrome
+ * hiding doesn't expose a gap below the video.
  */
+.scrolly-hero-sticky {
+  height: 100svh;
+}
+
 @media (max-width: 767px) and (orientation: portrait) {
   .scrolly-hero-sticky {
-    height: 100svh;
     height: 100lvh;
     min-height: 100svh;
   }
