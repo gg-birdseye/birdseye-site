@@ -121,53 +121,109 @@ export function CourseFullscreenButton({
   }, [syncState]);
 
   // Keep scroll-scrub working while the stage covers the viewport.
+  // Touch uses preventDefault (so the fixed stage can drive page scroll), which
+  // kills native mobile momentum — so we synthesize inertia on touchend.
   useEffect(() => {
     if (!isFullscreen) return;
 
     const stage =
       document.querySelector<HTMLElement>(targetSelector) ??
       (getFullscreenElement() as HTMLElement | null);
+    if (!stage) return;
 
     let lastTouchY = 0;
+    let lastTouchTime = 0;
+    /** Scroll px per ms (positive = scrub forward / scroll down). */
+    let velocityY = 0;
+    let momentumRaf = 0;
+
+    const stopMomentum = () => {
+      if (momentumRaf) {
+        cancelAnimationFrame(momentumRaf);
+        momentumRaf = 0;
+      }
+    };
+
+    const startMomentum = (initialVelocity: number) => {
+      stopMomentum();
+      // Ignore tiny flicks
+      if (Math.abs(initialVelocity) < 0.05) return;
+
+      let v = initialVelocity;
+      let last = performance.now();
+
+      const tick = (now: number) => {
+        const dt = Math.min(34, Math.max(0, now - last));
+        last = now;
+        // ~same feel as mobile browser deceleration
+        v *= Math.pow(0.965, dt / 16);
+        const dy = v * dt;
+        if (Math.abs(v) < 0.025 || Math.abs(dy) < 0.4) {
+          momentumRaf = 0;
+          return;
+        }
+        scrubByDelta(dy);
+        momentumRaf = requestAnimationFrame(tick);
+      };
+
+      momentumRaf = requestAnimationFrame(tick);
+    };
 
     const onWheel = (event: WheelEvent) => {
+      stopMomentum();
       event.preventDefault();
       scrubByDelta(event.deltaY);
     };
 
     const onTouchStart = (event: TouchEvent) => {
       if (event.touches.length !== 1) return;
+      stopMomentum();
       lastTouchY = event.touches[0].clientY;
+      lastTouchTime = performance.now();
+      velocityY = 0;
     };
 
     const onTouchMove = (event: TouchEvent) => {
       if (event.touches.length !== 1) return;
       const y = event.touches[0].clientY;
+      const now = performance.now();
       const delta = lastTouchY - y;
+      const dt = Math.max(1, now - lastTouchTime);
       lastTouchY = y;
+      lastTouchTime = now;
       if (!delta) return;
+
+      // Smooth velocity for a stable flick on release
+      const instant = delta / dt;
+      velocityY = velocityY * 0.65 + instant * 0.35;
+
       event.preventDefault();
       scrubByDelta(delta);
     };
 
-    const opts: AddEventListenerOptions = { passive: false };
-    const targets: EventTarget[] = [window, document];
-    if (stage) targets.push(stage);
+    const onTouchEnd = () => {
+      startMomentum(velocityY);
+      velocityY = 0;
+    };
 
-    for (const target of targets) {
-      target.addEventListener("wheel", onWheel as EventListener, opts);
-      target.addEventListener("touchstart", onTouchStart as EventListener, {
-        passive: true,
-      });
-      target.addEventListener("touchmove", onTouchMove as EventListener, opts);
-    }
+    const wheelOpts: AddEventListenerOptions = { passive: false };
+    const touchMoveOpts: AddEventListenerOptions = { passive: false };
+
+    // Attach once to the stage only — bubbling to window/document used to
+    // multiply deltas on real mobile browsers.
+    stage.addEventListener("wheel", onWheel, wheelOpts);
+    stage.addEventListener("touchstart", onTouchStart, { passive: true });
+    stage.addEventListener("touchmove", onTouchMove, touchMoveOpts);
+    stage.addEventListener("touchend", onTouchEnd, { passive: true });
+    stage.addEventListener("touchcancel", onTouchEnd, { passive: true });
 
     return () => {
-      for (const target of targets) {
-        target.removeEventListener("wheel", onWheel as EventListener);
-        target.removeEventListener("touchstart", onTouchStart as EventListener);
-        target.removeEventListener("touchmove", onTouchMove as EventListener);
-      }
+      stopMomentum();
+      stage.removeEventListener("wheel", onWheel);
+      stage.removeEventListener("touchstart", onTouchStart);
+      stage.removeEventListener("touchmove", onTouchMove);
+      stage.removeEventListener("touchend", onTouchEnd);
+      stage.removeEventListener("touchcancel", onTouchEnd);
     };
   }, [isFullscreen, targetSelector]);
 

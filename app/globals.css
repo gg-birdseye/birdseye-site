@@ -240,6 +240,7 @@ html.course-video-is-fullscreen [data-course-video-stage] {
   max-height: none !important;
   grid-area: unset !important;
   background: #000;
+  touch-action: none;
 }
 
 html.course-video-is-fullscreen .course-mobile-bottom-bar,
