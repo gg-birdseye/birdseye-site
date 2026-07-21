@@ -12,6 +12,7 @@ import { AerialPanelOverlay } from "@/components/AerialPanelOverlay";
 import { HoleGraphicPanel } from "@/components/HoleGraphicPanel";
 import { CoursePanelOverlay } from "@/components/CoursePanelOverlay";
 import { ScorecardChartOverlay, type ScorecardChartTee } from "@/components/ScorecardChartOverlay";
+import { useCourseBrowserChrome } from "@/lib/useCourseBrowserChrome";
 import { ScrollyVideoSection } from "@/components/ScrollyVideoSection";
 import {
   scorecardDisplayTotalPar,
@@ -276,6 +277,8 @@ export function ExampleCourseView({
     document.documentElement.classList.add("hide-scroll-bar");
     return () => document.documentElement.classList.remove("hide-scroll-bar");
   }, []);
+
+  useCourseBrowserChrome();
 
   useEffect(() => {
     const portraitMq = window.matchMedia("(max-width: 767px) and (orientation: portrait)");
@@ -1030,8 +1033,8 @@ export function ExampleCourseView({
         </div>
       </div>
 
-      {/* CoursePreview-style overlay chrome */}
-      <div className="pointer-events-none fixed inset-0 z-30 flex w-full max-w-[100vw] flex-col overflow-x-clip">
+      {/* CoursePreview-style overlay chrome — height locked to lvh on portrait */}
+      <div className="course-fixed-chrome pointer-events-none fixed inset-0 z-30 flex w-full max-w-[100vw] flex-col overflow-x-clip">
         {!hideLegacyChrome ? (
           <div className="flex shrink-0 items-start px-3 pt-3 md:px-5 md:pt-4">
             <div className="pointer-events-auto ml-[4.75rem] flex items-center gap-3 md:ml-[7.5rem]">
