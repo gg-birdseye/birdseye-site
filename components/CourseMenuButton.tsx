@@ -3,10 +3,17 @@
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import type { CourseContactInfo } from "@/lib/sanity/courses";
+import {
+  buildCourseShareTitle,
+  DEFAULT_SHARE_TEXT,
+  useShareCourse,
+} from "@/hooks/useShareCourse";
 
 type Props = {
   courseTitle: string;
   contact: CourseContactInfo;
+  /** Hole number used for the share title. */
+  activeHole: number;
   /** When true, show the hole-info toggle in the menu. */
   showHoleInfoToggle: boolean;
   holeInfoOpen: boolean;
@@ -78,9 +85,22 @@ function resolveMapsHref(contact: CourseContactInfo): string {
   return contact.mapsUrl ?? mapsSearchUrl(address);
 }
 
+function ShareIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="course-video-menu-share-icon"
+      aria-hidden
+    >
+      <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z" />
+    </svg>
+  );
+}
+
 export function CourseMenuButton({
   courseTitle,
   contact,
+  activeHole,
   showHoleInfoToggle,
   holeInfoOpen,
   onHoleInfoOpenChange,
@@ -89,8 +109,10 @@ export function CourseMenuButton({
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const panelId = useId();
+  const { share, copied } = useShareCourse();
   const hasAddress = Boolean(contact.addressLine);
   const hasPhone = Boolean(contact.phone && contact.phoneHref);
+  const shareLabel = copied ? "Copied" : "Share";
 
   useEffect(() => {
     if (!open) return;
@@ -188,14 +210,33 @@ export function CourseMenuButton({
             </button>
           ) : null}
 
-          <Link
-            className="course-video-menu-link"
-            href="/refer"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-          >
-            <span className="course-video-menu-link-value">Refer a Course</span>
-          </Link>
+          <div className="course-video-menu-actions">
+            <Link
+              className="course-video-menu-link course-video-menu-action course-video-menu-action--refer"
+              href="/refer"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+            >
+              <span className="course-video-menu-link-value">Refer a Course</span>
+            </Link>
+
+            <button
+              type="button"
+              className="course-video-menu-link course-video-menu-action course-video-menu-action--share"
+              role="menuitem"
+              aria-label={copied ? "Link copied" : "Share this course"}
+              onClick={() => {
+                void share({
+                  title: buildCourseShareTitle(courseTitle, activeHole),
+                  text: DEFAULT_SHARE_TEXT,
+                  url: window.location.href,
+                });
+              }}
+            >
+              <span className="course-video-menu-link-value">{shareLabel}</span>
+              <ShareIcon />
+            </button>
+          </div>
         </div>
       ) : null}
     </div>

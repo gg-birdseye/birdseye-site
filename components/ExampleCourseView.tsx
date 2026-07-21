@@ -5,7 +5,6 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CourseShareButton } from "@/components/CourseShareButton";
 import { CourseMenuButton } from "@/components/CourseMenuButton";
 import { HoleSelectorOverlay } from "@/components/HoleSelectorOverlay";
 import { ExampleCourseLogo } from "@/components/ExampleCourseLogo";
@@ -782,7 +781,7 @@ export function ExampleCourseView({
 
   const mobileVideoChrome = (
     <>
-      <div className="pointer-events-auto absolute left-3 top-1/2 z-10 -translate-y-1/2">
+      <div className="course-hole-nav-arrow course-hole-nav-arrow--prev pointer-events-auto">
         <button
           type="button"
           onClick={() => goToHole(activeHole <= 1 ? holeCount : activeHole - 1)}
@@ -792,7 +791,7 @@ export function ExampleCourseView({
           {holeNavArrowFace("prev")}
         </button>
       </div>
-      <div className="pointer-events-auto absolute right-3 top-1/2 z-10 -translate-y-1/2">
+      <div className="course-hole-nav-arrow course-hole-nav-arrow--next pointer-events-auto">
         <button
           type="button"
           onClick={() => goToHole(activeHole >= holeCount ? 1 : activeHole + 1)}
@@ -859,6 +858,7 @@ export function ExampleCourseView({
           </div>
         }
         mobileVideoChrome={mobileVideoChrome}
+        showFullscreenButton
       />
 
       <HoleSelectorOverlay
@@ -901,11 +901,10 @@ export function ExampleCourseView({
         </div>
       ) : null}
 
-      <CourseShareButton courseTitle={courseTitle} activeHole={activeHole} />
-
       <CourseMenuButton
         courseTitle={courseTitle}
         contact={resolvedContact}
+        activeHole={activeHole}
         showHoleInfoToggle={showHoleInfoToggle}
         holeInfoOpen={holeDescOpen}
         onHoleInfoOpenChange={handleHoleInfoOpenChange}
@@ -1141,7 +1140,7 @@ export function ExampleCourseView({
           <div className="min-w-0 flex-1" />
 
           {/* Previous hole — left edge (desktop) */}
-          <div className="pointer-events-auto absolute left-5 top-1/2 z-10 hidden -translate-y-1/2 md:left-8 md:block">
+          <div className="course-hole-nav-arrow course-hole-nav-arrow--prev course-hole-nav-arrow--desktop pointer-events-auto">
             <button
               type="button"
               onClick={() => goToHole(activeHole <= 1 ? holeCount : activeHole - 1)}
@@ -1153,7 +1152,7 @@ export function ExampleCourseView({
           </div>
 
           {/* Next hole — right edge (desktop) */}
-          <div className="pointer-events-auto absolute right-5 top-1/2 z-10 hidden -translate-y-1/2 md:right-8 md:block">
+          <div className="course-hole-nav-arrow course-hole-nav-arrow--next course-hole-nav-arrow--desktop pointer-events-auto">
             <button
               type="button"
               onClick={() => goToHole(activeHole >= holeCount ? 1 : activeHole + 1)}

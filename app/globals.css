@@ -112,9 +112,8 @@ html.hide-scroll-bar {
   --course-mobile-portrait-video-h: 56.25vw;
   --course-desktop-footer-h: calc(8.5rem + env(safe-area-inset-bottom, 0px));
   --course-video-logo-size: 9rem;
-  --course-video-share-size: 2.75rem;
-  --course-video-share-inset: 1.25rem;
-  --course-video-share-bottom-gap: 0.5rem;
+  --course-video-fullscreen-size: 2.75rem;
+  --course-video-fullscreen-inset: 1.25rem;
   --course-mobile-landscape-nav-w: 18%;
   --course-mobile-landscape-bar-h: calc(1.75rem + env(safe-area-inset-bottom, 0px));
   --course-hole-nav-inset: 0.75rem;
@@ -188,45 +187,160 @@ html.course-hole-selector-grid-open .course-video-logo {
   z-index: 20;
 }
 
-/** Share icon — fixed bottom-right of video */
-.course-video-share {
-  position: fixed;
-  z-index: 100;
-  right: var(--course-video-share-inset);
+/** Fullscreen control — bottom-right of the video stage */
+.course-video-fullscreen {
+  position: absolute;
+  z-index: 30;
+  right: var(--course-video-fullscreen-inset);
+  bottom: var(--course-video-fullscreen-inset);
   display: flex;
   align-items: center;
   justify-content: center;
-  width: var(--course-video-share-size);
-  height: var(--course-video-share-size);
+  width: var(--course-video-fullscreen-size);
+  height: var(--course-video-fullscreen-size);
   padding: 0;
   border: none;
   background: transparent;
   cursor: pointer;
-  bottom: calc(
-    6.25rem + var(--course-video-share-bottom-gap) +
-      env(safe-area-inset-bottom, 0px)
-  );
   filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.9))
     drop-shadow(0 2px 12px rgba(0, 0, 0, 0.55));
   transition: opacity 0.15s ease;
 }
 
-.course-video-share:hover {
+.course-video-fullscreen:hover {
   opacity: 0.88;
 }
 
-.course-video-share-icon {
+.course-video-fullscreen-icon {
   display: block;
   width: 100%;
   height: 100%;
   fill: #fff;
 }
 
-.course-scorecard-open .course-video-share {
+[data-course-video-stage]:fullscreen,
+[data-course-video-stage]:-webkit-full-screen {
+  width: 100%;
+  height: 100%;
+  background: #000;
+}
+
+/**
+ * Immersive video stage — covers the viewport while document scroll remains
+ * active underneath so ScrollTrigger scrub still works (gestures are forwarded
+ * from CourseFullscreenButton). Hide all chrome; only video + exit control.
+ */
+html.course-video-is-fullscreen [data-course-video-stage] {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 200 !important;
+  width: 100% !important;
+  height: 100% !important;
+  height: 100dvh !important;
+  max-height: none !important;
+  grid-area: unset !important;
+  background: #000;
+}
+
+html.course-video-is-fullscreen .course-mobile-bottom-bar,
+html.course-video-is-fullscreen .course-mobile-portrait-panel-bar,
+html.course-video-is-fullscreen .course-birdseye-desktop-logo,
+html.course-video-is-fullscreen .course-mobile-nav,
+html.course-video-is-fullscreen .course-scorecard-chart,
+html.course-video-is-fullscreen .course-aerial-panel,
+html.course-video-is-fullscreen .course-courses-panel,
+html.course-video-is-fullscreen .course-hole-graphic-panel {
+  display: none !important;
+}
+
+/* Keep on-video chrome above the immersive stage; drop logo into the corner */
+html.course-video-is-fullscreen .course-video-logo {
+  z-index: 215 !important;
+  top: auto !important;
+  right: auto !important;
+  left: calc(0.75rem + env(safe-area-inset-left, 0px)) !important;
+  bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+html.course-video-is-fullscreen .course-video-menu {
+  z-index: 215 !important;
+  top: calc(env(safe-area-inset-top, 0px) + var(--course-hole-nav-inset)) !important;
+  right: calc(env(safe-area-inset-right, 0px) + var(--course-hole-nav-inset)) !important;
+}
+
+html.course-video-is-fullscreen .course-hole-selector,
+html.course-video-is-fullscreen .course-hole-info-panel {
+  z-index: 215 !important;
+}
+
+html.course-video-is-fullscreen .course-video-fullscreen {
+  position: fixed !important;
+  z-index: 220;
+  top: auto;
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  right: calc(1rem + env(safe-area-inset-right, 0px));
+  width: var(--course-video-fullscreen-size);
+  height: var(--course-video-fullscreen-size);
+}
+
+/* Hole grid fills the immersive viewport; keep the hole button above it */
+html.course-video-is-fullscreen.course-hole-selector-grid-open
+  .course-hole-selector-backdrop,
+html.course-video-is-fullscreen.course-hole-selector-grid-open
+  .course-hole-selector-panel,
+html.course-video-is-fullscreen.course-hole-selector-grid-open
+  .course-hole-selector-panel--fullscreen {
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  left: 0 !important;
+}
+
+html.course-video-is-fullscreen.course-hole-selector-grid-open
+  .course-hole-selector-backdrop {
+  z-index: 216 !important;
+}
+
+html.course-video-is-fullscreen.course-hole-selector-grid-open
+  .course-hole-selector-panel {
+  z-index: 217 !important;
+  padding:
+    calc(
+      env(safe-area-inset-top, 0px) + var(--course-hole-nav-inset) +
+        var(--course-hole-selector-btn-size) + 0.75rem
+    )
+    var(--course-hole-nav-inset)
+    calc(1rem + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+html.course-video-is-fullscreen.course-hole-selector-grid-open
+  .course-hole-selector {
+  z-index: 225 !important;
+}
+
+html.course-video-is-fullscreen.course-hole-selector-grid-open
+  .course-video-fullscreen {
+  z-index: 226 !important;
+}
+
+@media (min-width: 768px) and (min-height: 601px) {
+  html.course-video-is-fullscreen.course-hole-selector-grid-open
+    .course-hole-selector-panel {
+    padding:
+      calc(
+        env(safe-area-inset-top, 0px) + var(--course-hole-nav-inset-desktop) +
+          var(--course-hole-selector-btn-size-desktop) + 0.75rem
+      )
+      var(--course-hole-nav-inset-desktop)
+      calc(1.25rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
+.course-scorecard-open .course-video-fullscreen {
   display: none;
 }
 
-html.course-hole-selector-grid-open .course-video-share {
+html.course-hole-selector-grid-open .course-video-fullscreen {
   z-index: 20;
 }
 
@@ -269,6 +383,49 @@ html.course-hole-selector-grid-open .course-video-share {
 }
 
 /** Prev/next hole arrows — same face styling as the menu / hole selector buttons */
+.course-hole-nav-arrow {
+  position: absolute;
+  z-index: 10;
+  top: calc(50% - 1.75rem);
+  transform: translateY(-50%);
+}
+
+.course-hole-nav-arrow--prev {
+  left: 0.75rem;
+}
+
+.course-hole-nav-arrow--next {
+  right: 0.75rem;
+}
+
+.course-hole-nav-arrow--desktop {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .course-hole-nav-arrow--desktop {
+    display: block;
+  }
+
+  .course-hole-nav-arrow--desktop.course-hole-nav-arrow--prev {
+    left: 2rem;
+  }
+
+  .course-hole-nav-arrow--desktop.course-hole-nav-arrow--next {
+    right: 2rem;
+  }
+}
+
+html.course-video-is-fullscreen .course-hole-nav-arrow {
+  top: 50%;
+}
+
+@media (max-width: 767px) and (orientation: portrait) {
+  .course-hole-nav-arrow {
+    top: 50%;
+  }
+}
+
 .course-hole-nav-arrow-btn {
   display: block;
   width: 2.75rem;
@@ -377,6 +534,50 @@ html.course-hole-selector-grid-open .course-video-share {
   font-size: 0.875rem;
   line-height: 1.35;
   color: rgba(255, 255, 255, 0.92);
+}
+
+.course-video-menu-actions {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.course-video-menu-action {
+  width: auto;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.65rem 0.55rem;
+  text-align: center;
+}
+
+.course-video-menu-action .course-video-menu-link-value {
+  margin-top: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+}
+
+.course-video-menu-action--refer {
+  flex: 1 1 auto;
+}
+
+.course-video-menu-action--share {
+  flex: 0 0 auto;
+  width: auto;
+  padding-left: 0.7rem;
+  padding-right: 0.7rem;
+}
+
+.course-video-menu-share-icon {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  fill: currentColor;
 }
 
 .course-video-menu-toggle {
@@ -561,16 +762,12 @@ html.course-hole-selector-grid-open .course-video-menu {
 }
 
 @media (max-width: 767px) and (orientation: portrait) {
-  .course-video-share {
-    --course-video-share-size: 2rem;
-    --course-video-share-inset: 0.75rem;
-    --course-video-share-bottom-gap: 0.125rem;
-    right: 0.75rem;
-    top: calc(
-      56.25vw - var(--course-video-share-size) - var(--course-video-share-inset) -
-        var(--course-video-share-bottom-gap)
-    );
-    bottom: auto;
+  .course-video-fullscreen {
+    --course-video-fullscreen-size: 2rem;
+    --course-video-fullscreen-inset: 0.75rem;
+    right: var(--course-video-fullscreen-inset);
+    bottom: var(--course-video-fullscreen-inset);
+    top: auto;
   }
 
   .course-video-menu {
@@ -759,7 +956,7 @@ html.course-hole-selector-grid-open .course-video-menu {
     display: block;
   }
 
-  .course-scorecard-open .course-video-share {
+  .course-scorecard-open .course-video-fullscreen {
     display: block;
   }
 }
@@ -916,15 +1113,14 @@ html.course-hole-selector-grid-open .course-video-menu {
     bottom: calc(var(--course-mobile-landscape-bar-h) + 0.5rem);
   }
 
-  .course-video-share {
-    --course-video-share-size: 2rem;
-    --course-video-share-inset: 0.75rem;
-    --course-video-share-bottom-gap: 0.125rem;
-    right: var(--course-video-share-inset);
+  .course-video-fullscreen {
+    --course-video-fullscreen-size: 2rem;
+    --course-video-fullscreen-inset: 0.75rem;
+    right: var(--course-video-fullscreen-inset);
     bottom: calc(
-      var(--course-mobile-landscape-bar-h) + var(--course-video-share-inset) +
-        var(--course-video-share-bottom-gap)
+      var(--course-mobile-landscape-bar-h) + var(--course-video-fullscreen-inset)
     );
+    top: auto;
   }
 
   .course-aerial-hole-view-open .course-mobile-sticky {
@@ -944,11 +1140,8 @@ html.course-hole-selector-grid-open .course-video-menu {
     right: var(--course-aerial-hole-panel-w-landscape, 18%);
   }
 
-  .course-aerial-hole-view-open .course-video-share {
-    right: calc(
-      var(--course-aerial-hole-panel-w-landscape, 18%) +
-        var(--course-video-share-inset)
-    );
+  .course-aerial-hole-view-open .course-video-fullscreen {
+    right: var(--course-video-fullscreen-inset);
   }
 
   /* Keep the menu at the top-right of the video column, clear of the hole
@@ -1044,11 +1237,9 @@ html.course-hole-selector-grid-open .course-video-menu {
     top: auto;
   }
 
-  .course-video-share {
-    bottom: calc(
-      var(--course-desktop-footer-h) + var(--course-video-share-inset) +
-        var(--course-video-share-bottom-gap)
-    );
+  .course-video-fullscreen {
+    right: var(--course-video-fullscreen-inset);
+    bottom: var(--course-video-fullscreen-inset);
     top: auto;
   }
 
@@ -1504,7 +1695,7 @@ html.course-hole-selector-grid-open .course-video-menu {
   display: none;
 }
 
-.course-courses-open .course-video-share {
+.course-courses-open .course-video-fullscreen {
   display: none;
 }
 
@@ -1611,7 +1802,7 @@ html.course-hole-selector-grid-open .course-video-menu {
     display: block;
   }
 
-  .course-courses-open .course-video-share {
+  .course-courses-open .course-video-fullscreen {
     display: block;
   }
 }
@@ -1621,7 +1812,7 @@ html.course-hole-selector-grid-open .course-video-menu {
   display: none;
 }
 
-.course-aerial-open .course-video-share {
+.course-aerial-open .course-video-fullscreen {
   display: none;
 }
 
@@ -2050,12 +2241,9 @@ html.course-hole-selector-grid-open .course-video-menu {
     left: calc(25% + 0.75rem);
   }
 
-  .course-aerial-hole-view-open .course-video-share {
-    right: var(--course-video-share-inset);
-    bottom: calc(
-      var(--course-desktop-footer-h) + var(--course-video-share-inset) +
-        var(--course-video-share-bottom-gap)
-    );
+  .course-aerial-hole-view-open .course-video-fullscreen {
+    right: var(--course-video-fullscreen-inset);
+    bottom: var(--course-video-fullscreen-inset);
   }
 
   .course-aerial-hole-view-open .course-mobile-landscape-hide {
@@ -2424,7 +2612,7 @@ html.course-hole-selector-grid-open .course-video-menu {
     display: block;
   }
 
-  .course-aerial-open .course-video-share {
+  .course-aerial-open .course-video-fullscreen {
     display: block;
   }
 }
@@ -2729,6 +2917,16 @@ html.course-hole-selector-grid-open .course-video-menu {
     left: calc(var(--course-mobile-landscape-nav-w) + var(--course-hole-nav-inset));
   }
 
+  /* Nav column is hidden in immersive mode — pin hole button to true top-left */
+  html.course-video-is-fullscreen .course-hole-selector {
+    left: calc(env(safe-area-inset-left, 0px) + var(--course-hole-nav-inset)) !important;
+  }
+
+  html.course-video-is-fullscreen .course-video-menu {
+    top: calc(env(safe-area-inset-top, 0px) + var(--course-hole-nav-inset)) !important;
+    right: calc(env(safe-area-inset-right, 0px) + var(--course-hole-nav-inset)) !important;
+  }
+
   .course-hole-selector-open {
     z-index: 43;
   }
@@ -2738,6 +2936,16 @@ html.course-hole-selector-grid-open .course-video-menu {
     top: 0;
     left: var(--course-mobile-landscape-nav-w);
     bottom: 0;
+  }
+
+  html.course-video-is-fullscreen.course-hole-selector-grid-open
+    .course-hole-selector-backdrop,
+  html.course-video-is-fullscreen.course-hole-selector-grid-open
+    .course-hole-selector-panel {
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
   }
 
   html.course-hole-selector-grid-open .course-hole-selector-backdrop {
@@ -2825,7 +3033,7 @@ html.course-hole-selector-grid-open .course-video-menu {
     z-index: 100;
   }
 
-  html.course-hole-selector-grid-open .course-video-share {
+  html.course-hole-selector-grid-open .course-video-fullscreen {
     z-index: 100;
   }
 }

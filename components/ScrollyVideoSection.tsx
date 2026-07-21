@@ -12,6 +12,7 @@ import {
 } from "@/lib/frame-sequence/canvas-draw";
 import { useFrameSequence } from "@/hooks/useFrameSequence";
 import { ScrollFlyHint } from "@/components/ScrollFlyHint";
+import { CourseFullscreenButton } from "@/components/CourseFullscreenButton";
 
 const SCROLL_HINT_DISMISS_PX = 120;
 
@@ -53,6 +54,8 @@ type Props = {
   mobileFooter?: ReactNode;
   /** Overlays on the video on mobile (e.g. hole nav, quality toggle). */
   mobileVideoChrome?: ReactNode;
+  /** Course pages: show expand/compress control on the video stage. */
+  showFullscreenButton?: boolean;
 };
 
 type HlsAttach = {
@@ -119,6 +122,7 @@ export function ScrollyVideoSection({
   onScrollHintDismiss,
   mobileFooter,
   mobileVideoChrome,
+  showFullscreenButton = false,
 }: Props) {
   const trackRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -637,6 +641,7 @@ export function ScrollyVideoSection({
                 ? "scrolly-video-stage-mobile md:h-full md:min-h-0 md:flex-1"
                 : "h-full"
             }`}
+            data-course-video-stage
             style={{
               backgroundImage: firstFrameUrl
                 ? `url(${firstFrameUrl})`
@@ -768,6 +773,8 @@ export function ScrollyVideoSection({
                 {mobileVideoChrome}
               </div>
             ) : null}
+
+            {showFullscreenButton ? <CourseFullscreenButton /> : null}
           </div>
         </div>
       </div>

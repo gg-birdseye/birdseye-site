@@ -20,7 +20,15 @@ type HoleSelectorOverlayProps = {
   onOpen?: () => void;
 };
 
-function gridLayout(holeCount: number): { columns: number; rows: number } {
+function gridLayout(
+  holeCount: number,
+  options?: { portraitStacked?: boolean },
+): { columns: number; rows: number } {
+  if (options?.portraitStacked) {
+    if (holeCount <= 9) return { columns: 3, rows: 3 };
+    if (holeCount <= 18) return { columns: 3, rows: 6 };
+    return { columns: 3, rows: Math.ceil(holeCount / 3) };
+  }
   if (holeCount <= 9) return { columns: 3, rows: 3 };
   if (holeCount <= 18) return { columns: 6, rows: 3 };
   return { columns: 9, rows: 3 };
@@ -35,6 +43,11 @@ function isMobileLandscapeViewport(): boolean {
   if (typeof window === "undefined") return false;
   return window.matchMedia("(orientation: landscape) and (max-height: 600px)")
     .matches;
+}
+
+function isVideoFullscreen(): boolean {
+  if (typeof document === "undefined") return false;
+  return document.documentElement.classList.contains("course-video-is-fullscreen");
 }
 
 export function HoleSelectorOverlay({
@@ -54,6 +67,7 @@ export function HoleSelectorOverlay({
   const [isMobileLandscape, setIsMobileLandscape] = useState(() =>
     isMobileLandscapeViewport(),
   );
+  const [isFullscreen, setIsFullscreen] = useState(() => isVideoFullscreen());
 
   const isMobileOverlayLayout = isMobilePortrait || isMobileLandscape;
 
@@ -61,10 +75,14 @@ export function HoleSelectorOverlay({
     () => Array.from({ length: holeCount }, (_, index) => index + 1),
     [holeCount],
   );
-  const { columns, rows } = gridLayout(holeCount);
+  const { columns, rows } = gridLayout(holeCount, {
+    portraitStacked: isFullscreen && isMobilePortrait,
+  });
   const activePar = parForHole(activeHole);
+  // Portrait normally keeps a persistent grid under the video. In fullscreen that
+  // would cover the flyover, so require an explicit open tap instead.
   const showGrid =
-    open || (isMobilePortrait && !hideGrid);
+    open || (isMobilePortrait && !hideGrid && !isFullscreen);
 
   useEffect(() => {
     if (hideGrid) {
@@ -86,13 +104,22 @@ export function HoleSelectorOverlay({
     const update = () => {
       setIsMobilePortrait(portraitMq.matches);
       setIsMobileLandscape(landscapeMq.matches);
+      setIsFullscreen(isVideoFullscreen());
     };
     update();
     portraitMq.addEventListener("change", update);
     landscapeMq.addEventListener("change", update);
+
+    const observer = new MutationObserver(update);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+
     return () => {
       portraitMq.removeEventListener("change", update);
       landscapeMq.removeEventListener("change", update);
+      observer.disconnect();
     };
   }, []);
 
@@ -124,7 +151,7 @@ export function HoleSelectorOverlay({
       type="button"
       className="course-hole-selector-btn"
       onClick={() => {
-        if (isMobilePortrait && !hideGrid) return;
+        if (isMobilePortrait && !hideGrid && !isFullscreen) return;
         setOpen((value) => {
           const nextOpen = !value;
           if (nextOpen) {
@@ -209,8 +236,9 @@ export function HoleSelectorOverlay({
   );
 
   // Landscape only: move toggle into the panel top row. Portrait keeps a single
-  // fixed toggle on the video corner.
-  const showPanelToggleRow = isMobileLandscape && !isMobilePortrait && showGrid;
+  // fixed toggle on the video corner. Fullscreen keeps the fixed top-left toggle.
+  const showPanelToggleRow =
+    isMobileLandscape && !isMobilePortrait && showGrid && !isFullscreen;
 
   return (
     <>
@@ -239,7 +267,9 @@ export function HoleSelectorOverlay({
           <div
             className={`course-hole-selector-panel${
               showPanelToggleRow ? " course-hole-selector-panel--landscape" : ""
-            }${isMobilePortrait && showGrid ? " course-hole-selector-panel--portrait-open" : ""}`}
+            }${isMobilePortrait && showGrid ? " course-hole-selector-panel--portrait-open" : ""}${
+              isFullscreen ? " course-hole-selector-panel--fullscreen" : ""
+            }`}
             role="dialog"
             aria-label="Select a hole"
             aria-modal={!isMobileOverlayLayout}
@@ -264,7 +294,7 @@ export function HoleSelectorOverlay({
                     type="button"
                     onClick={() => {
                       onHoleSelect(hole);
-                      if (!isMobilePortrait) setOpen(false);
+                      if (!isMobilePortrait || isFullscreen) setOpen(false);
                     }}
                     className={`course-hole-selector-grid-btn ${
                       isActive ? "course-hole-selector-grid-btn-active" : ""
