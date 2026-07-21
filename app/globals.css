@@ -109,13 +109,12 @@ html.hide-scroll-bar {
   -ms-overflow-style: none;
   --course-mobile-bar-h: calc(6rem + env(safe-area-inset-bottom, 0px));
   --course-mobile-portrait-panel-h: calc(1rem + 2.75rem + 1px);
-  /* Visible 16:9 band; full stage adds browser chrome gap above for reveal. */
-  --course-mobile-portrait-video-visible-h: 56.25vw;
+  /* Original 16:9 video band — does not grow with browser chrome. */
+  --course-mobile-portrait-video-h: 56.25vw;
+  --course-layout-h: 100lvh;
   --course-chrome-gap: 0px;
   --course-chrome-shift: 0px;
-  --course-mobile-portrait-video-h: calc(
-    var(--course-mobile-portrait-video-visible-h) + var(--course-chrome-gap)
-  );
+  --course-mobile-portrait-bottom-stack-h: var(--course-mobile-bar-h);
   --course-desktop-footer-h: calc(8.5rem + env(safe-area-inset-bottom, 0px));
   --course-video-logo-size: 9rem;
   --course-video-fullscreen-size: 2.75rem;
@@ -436,11 +435,7 @@ html.course-video-is-fullscreen .course-hole-nav-arrow {
 
 @media (max-width: 767px) and (orientation: portrait) {
   .course-hole-nav-arrow {
-    /* Center in the visible video band; ease toward full-stage center as chrome hides. */
-    top: calc(
-      (var(--course-chrome-gap) + var(--course-mobile-portrait-video-visible-h)) / 2 +
-        var(--course-chrome-shift) / 2
-    );
+    top: 50%;
   }
 }
 
@@ -744,7 +739,11 @@ html.course-hole-selector-grid-open .course-video-menu {
 @media (max-width: 767px) and (orientation: portrait) {
   .course-hole-info-panel {
     top: var(--course-mobile-portrait-video-h);
-    bottom: var(--course-mobile-bar-h);
+    bottom: auto;
+    height: calc(
+      var(--course-layout-h) - var(--course-mobile-portrait-video-h) -
+        var(--course-mobile-portrait-bottom-stack-h)
+    );
     transform: none;
     align-items: flex-start;
     justify-content: flex-start;
@@ -752,10 +751,6 @@ html.course-hole-selector-grid-open .course-video-menu {
     padding-bottom: 0.75rem;
     background: rgba(26, 24, 20, 0.92);
     border-top: 1px solid rgba(255, 255, 255, 0.1);
-  }
-
-  .course-has-portrait-panel-nav .course-hole-info-panel {
-    bottom: calc(var(--course-mobile-bar-h) + var(--course-mobile-portrait-panel-h));
   }
 
   .course-hole-info-card {
@@ -818,8 +813,8 @@ html.course-hole-selector-grid-open .course-video-menu {
     --course-video-logo-size: 4rem;
     left: 0.25rem;
     top: calc(
-      var(--course-chrome-gap) + var(--course-mobile-portrait-video-visible-h) -
-        var(--course-video-logo-size) - 0.125rem
+      var(--course-mobile-portrait-video-h) - var(--course-video-logo-size) -
+        0.125rem
     );
     bottom: auto;
   }
@@ -835,14 +830,6 @@ html.course-hole-selector-grid-open .course-video-menu {
     position: static;
     height: auto;
     object-fit: contain;
-    object-position: top center;
-  }
-}
-
-@media (max-width: 767px) and (orientation: portrait) {
-  .course-mobile-sticky .scrolly-video-course {
-    height: 100%;
-    object-fit: cover;
     object-position: top center;
   }
 }
@@ -872,17 +859,25 @@ html.course-hole-selector-grid-open .course-video-menu {
 
 @media (max-width: 767px) and (orientation: portrait) {
   /*
-   * Lock shell to the large viewport so URL-bar show/hide reveals the top of
-   * the video instead of resizing the info panel below.
+   * Lock geometry to the large viewport. Video stays the original 16:9 height;
+   * info uses the remaining lvh space (as tall as the old "chrome hidden" state).
+   * Pin with top + height (not bottom: 0) so Android Chrome can't slide the UI.
    */
   html.hide-scroll-bar {
     --course-chrome-gap: calc(100lvh - 100svh);
+    --course-layout-h: 100lvh;
+  }
+
+  html.course-has-portrait-panel-nav {
+    --course-mobile-portrait-bottom-stack-h: calc(
+      var(--course-mobile-bar-h) + var(--course-mobile-portrait-panel-h)
+    );
   }
 
   .course-mobile-sticky {
-    height: 100lvh;
-    min-height: 100lvh;
-    max-height: 100lvh;
+    height: var(--course-layout-h);
+    min-height: var(--course-layout-h);
+    max-height: var(--course-layout-h);
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
     grid-template-areas:
@@ -890,22 +885,21 @@ html.course-hole-selector-grid-open .course-video-menu {
       "spacer";
   }
 
-  /* Overlay chrome matches the same stable large viewport. */
   .course-fixed-chrome {
     top: 0;
     right: 0;
     left: 0;
     bottom: auto;
-    height: 100lvh;
-    max-height: 100lvh;
+    height: var(--course-layout-h);
+    max-height: var(--course-layout-h);
   }
 
-  /* Course pages only — landing hero keeps full sticky viewport height. */
   .course-mobile-sticky .course-mobile-video-stage {
     grid-area: video;
     width: 100%;
     height: var(--course-mobile-portrait-video-h);
     min-height: var(--course-mobile-portrait-video-h);
+    max-height: var(--course-mobile-portrait-video-h);
     flex-shrink: 0;
   }
 
@@ -918,12 +912,7 @@ html.course-hole-selector-grid-open .course-video-menu {
     display: block;
     width: 100%;
     height: 100%;
-    object-fit: cover;
-    object-position: top center;
-  }
-
-  .course-mobile-sticky .course-mobile-video-stage canvas {
-    object-fit: cover;
+    object-fit: contain;
     object-position: top center;
   }
 
@@ -936,12 +925,14 @@ html.course-hole-selector-grid-open .course-video-menu {
     display: block;
   }
 
+  /* Pin footer to the frozen layout bottom — never bottom: 0 (that slides on Android). */
   .course-mobile-bottom-bar {
     display: block;
     position: fixed;
     left: 0;
     right: 0;
-    bottom: 0;
+    top: calc(var(--course-layout-h) - var(--course-mobile-bar-h));
+    bottom: auto;
     z-index: 37;
     width: 100%;
     box-sizing: border-box;
@@ -964,7 +955,11 @@ html.course-hole-selector-grid-open .course-video-menu {
     z-index: 38;
     right: 0;
     left: 0;
-    bottom: var(--course-mobile-bar-h);
+    top: calc(
+      var(--course-layout-h) - var(--course-mobile-bar-h) -
+        var(--course-mobile-portrait-panel-h)
+    );
+    bottom: auto;
     min-height: var(--course-mobile-portrait-panel-h);
     box-sizing: border-box;
     gap: 0.375rem;
@@ -987,12 +982,13 @@ html.course-hole-selector-grid-open .course-video-menu {
     letter-spacing: 0.12em;
   }
 
-  .course-has-portrait-panel-nav .course-scorecard-chart {
-    bottom: calc(var(--course-mobile-bar-h) + var(--course-mobile-portrait-panel-h));
-  }
-
   .course-scorecard-open .course-scorecard-chart {
     top: var(--course-mobile-portrait-video-h);
+    bottom: auto;
+    height: calc(
+      var(--course-layout-h) - var(--course-mobile-portrait-video-h) -
+        var(--course-mobile-portrait-bottom-stack-h)
+    );
   }
 
   .course-scorecard-open .course-scorecard-chart-plot {
@@ -1850,12 +1846,13 @@ html.course-hole-selector-grid-open .course-video-menu {
 }
 
 @media (max-width: 767px) and (orientation: portrait) {
-  .course-has-portrait-panel-nav .course-courses-panel {
-    bottom: calc(var(--course-mobile-bar-h) + var(--course-mobile-portrait-panel-h));
-  }
-
   .course-courses-open .course-courses-panel {
     top: var(--course-mobile-portrait-video-h);
+    bottom: auto;
+    height: calc(
+      var(--course-layout-h) - var(--course-mobile-portrait-video-h) -
+        var(--course-mobile-portrait-bottom-stack-h)
+    );
   }
 
   .course-courses-open .course-video-logo {
@@ -2639,13 +2636,13 @@ html.course-hole-selector-grid-open .course-video-menu {
 }
 
 @media (max-width: 767px) and (orientation: portrait) {
-  .course-has-portrait-panel-nav .course-hole-graphic-panel {
-    bottom: calc(var(--course-mobile-bar-h) + var(--course-mobile-portrait-panel-h));
-  }
-
   .course-aerial-hole-view-open .course-hole-graphic-panel {
     top: var(--course-mobile-portrait-video-h);
-    bottom: calc(var(--course-mobile-bar-h) + var(--course-mobile-portrait-panel-h));
+    bottom: auto;
+    height: calc(
+      var(--course-layout-h) - var(--course-mobile-portrait-video-h) -
+        var(--course-mobile-portrait-bottom-stack-h)
+    );
   }
 
   .course-aerial-hole-view-open .course-hole-graphic-panel-header {
@@ -2663,12 +2660,13 @@ html.course-hole-selector-grid-open .course-video-menu {
 }
 
 @media (max-width: 767px) and (orientation: portrait) {
-  .course-has-portrait-panel-nav .course-aerial-panel {
-    bottom: calc(var(--course-mobile-bar-h) + var(--course-mobile-portrait-panel-h));
-  }
-
   .course-aerial-open .course-aerial-panel {
     top: var(--course-mobile-portrait-video-h);
+    bottom: auto;
+    height: calc(
+      var(--course-layout-h) - var(--course-mobile-portrait-video-h) -
+        var(--course-mobile-portrait-bottom-stack-h)
+    );
   }
 
   .course-aerial-open .course-video-logo {
@@ -3061,26 +3059,19 @@ html.course-hole-selector-grid-open .course-video-menu {
     left: var(--course-hole-nav-inset);
   }
 
-  html.course-has-portrait-panel-nav .course-hole-selector-backdrop,
-  html.course-has-portrait-panel-nav .course-hole-selector-panel {
-    bottom: calc(var(--course-mobile-bar-h) + var(--course-mobile-portrait-panel-h));
-  }
-
   html.course-hole-selector-portrait-persistent .course-hole-selector-backdrop {
     display: none;
   }
 
   html.course-hole-selector-grid-open .course-hole-selector-panel {
     top: var(--course-mobile-portrait-video-h);
+    bottom: auto;
+    height: calc(
+      var(--course-layout-h) - var(--course-mobile-portrait-video-h) -
+        var(--course-mobile-portrait-bottom-stack-h)
+    );
     padding: 0.5rem var(--course-hole-nav-inset) 1rem;
     z-index: 35;
-  }
-
-  html.course-has-portrait-panel-nav.course-hole-selector-grid-open
-    .course-hole-selector-panel,
-  html.course-has-portrait-panel-nav.course-hole-selector-grid-open
-    .course-hole-selector-backdrop {
-    bottom: calc(var(--course-mobile-bar-h) + var(--course-mobile-portrait-panel-h));
   }
 
   html.course-hole-selector-grid-open .course-hole-selector-panel--portrait-open
@@ -3095,6 +3086,11 @@ html.course-hole-selector-grid-open .course-video-menu {
 
   html.course-hole-selector-grid-open .course-hole-selector-backdrop {
     top: var(--course-mobile-portrait-video-h);
+    bottom: auto;
+    height: calc(
+      var(--course-layout-h) - var(--course-mobile-portrait-video-h) -
+        var(--course-mobile-portrait-bottom-stack-h)
+    );
   }
 
   html.course-hole-selector-grid-open .course-hole-selector-open {
