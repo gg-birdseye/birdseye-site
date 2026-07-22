@@ -197,6 +197,33 @@ export function ScrollRevealSubheadings({
       });
     };
 
+    const equalizePortraitOvalHeights = () => {
+      const ovals = rows
+        .map(({ oval }) => oval)
+        .filter((oval): oval is HTMLElement => oval != null);
+
+      ovals.forEach((oval) => {
+        oval.style.minHeight = "";
+      });
+
+      if (!isMobilePortraitLayout() || ovals.length === 0) return;
+
+      // Measure unscaled content height so mid-animation scale doesn't skew the max.
+      let maxHeight = 0;
+      ovals.forEach((oval) => {
+        const prev = oval.style.transform;
+        oval.style.transform = "none";
+        maxHeight = Math.max(maxHeight, oval.getBoundingClientRect().height);
+        oval.style.transform = prev;
+      });
+
+      if (maxHeight <= 0) return;
+      const next = `${Math.ceil(maxHeight)}px`;
+      ovals.forEach((oval) => {
+        oval.style.minHeight = next;
+      });
+    };
+
     const syncRowPosition = (
       row: HTMLElement | null,
       top: number,
@@ -297,12 +324,25 @@ export function ScrollRevealSubheadings({
         const segEnd = segStart + segmentSize;
         const targetTop = slotTopPx(index, lines.length);
         const isLast = index === lines.length - 1;
-        const useStandardReveal = !isLast || isMobilePortraitLayout();
-        const rowRevealPortion = useStandardReveal ? revealPortion : 0.55;
-        const rowMoveStart = useStandardReveal ? revealPortion * 0.45 : 0;
-        const rowStartTop = useStandardReveal
-          ? window.innerHeight * 0.67
-          : window.innerHeight;
+        const isPortrait = isMobilePortraitLayout();
+        // Portrait: slide every pill up from the bottom of the screen.
+        // Desktop: earlier pills ease in from mid-viewport; the last from bottom.
+        const useStandardReveal = !isLast && !isPortrait;
+        const rowRevealPortion = isPortrait
+          ? 0.42
+          : useStandardReveal
+            ? revealPortion
+            : 0.55;
+        const rowMoveStart = isPortrait
+          ? 0
+          : useStandardReveal
+            ? revealPortion * 0.45
+            : 0;
+        const rowStartTop = isPortrait
+          ? window.innerHeight
+          : useStandardReveal
+            ? window.innerHeight * 0.67
+            : window.innerHeight;
 
         if (pinProgress <= segStart) {
           syncRowPosition(row, window.innerHeight, false);
@@ -392,16 +432,30 @@ export function ScrollRevealSubheadings({
       const headlineTrigger = ScrollTrigger.getById("scroll-reveal-headline");
 
       requestAnimationFrame(() => {
+        equalizePortraitOvalHeights();
         ScrollTrigger.refresh();
         sync(headlineTrigger?.progress ?? trigger.progress);
       });
 
+      // Re-measure once web fonts settle — short vs long lines can wrap differently.
+      const fontsReady =
+        "fonts" in document
+          ? document.fonts.ready.then(() => {
+              equalizePortraitOvalHeights();
+              ScrollTrigger.refresh();
+              sync(trigger.progress);
+            })
+          : null;
+      void fontsReady;
+
       const onResize = () => {
+        equalizePortraitOvalHeights();
         ScrollTrigger.refresh();
         sync(trigger.progress);
       };
 
       window.addEventListener("resize", onResize);
+      equalizePortraitOvalHeights();
 
       return () => {
         window.removeEventListener("resize", onResize);
@@ -432,10 +486,12 @@ export function ScrollRevealSubheadings({
           className="pointer-events-none fixed inset-x-0 z-20 mx-auto flex h-[25svh] w-full max-w-4xl items-center justify-center px-4 text-center max-[767px]:portrait:h-auto max-[767px]:portrait:min-h-0 max-[940px]:landscape:h-[12svh] max-[940px]:landscape:px-2"
         >
           <div
-            className="scroll-reveal-oval inline-flex max-w-full items-center justify-center rounded-[999px] px-8 py-3.5 md:px-12 md:py-5 max-[940px]:landscape:px-5 max-[940px]:landscape:py-2"
+            className="scroll-reveal-oval inline-flex max-w-full items-center justify-center rounded-[999px] px-8 py-3.5 md:px-12 md:py-5 max-[767px]:portrait:min-h-[4.25rem] max-[767px]:portrait:w-full max-[767px]:portrait:max-w-[22rem] max-[940px]:landscape:px-5 max-[940px]:landscape:py-2"
             style={{ backgroundColor: STACK_ACCENT, color: STACK_BG }}
           >
-            <p className="leading-tight tracking-tight">{splitWords(line, lineIndex)}</p>
+            <p className="leading-tight tracking-tight max-[767px]:portrait:text-balance">
+              {splitWords(line, lineIndex)}
+            </p>
           </div>
         </div>
       ))}

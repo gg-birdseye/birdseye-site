@@ -7,10 +7,10 @@ export const MOBILE_LANDSCAPE_SUBHEADING_ROW_VH = 12;
 
 /** Gap between logo bottom and headline text when stuck. */
 const LOGO_HEADLINE_GAP_PX = 10;
-/** Extra lift for the stuck headline on mobile portrait. */
-const MOBILE_PORTRAIT_HEADLINE_LIFT_PX = 28;
+/** Extra lift for the stuck headline on mobile portrait (more room for bullets). */
+const MOBILE_PORTRAIT_HEADLINE_LIFT_PX = 64;
 /** Gap below the stuck headline before the first subheading (mobile portrait). */
-const MOBILE_PORTRAIT_FIRST_SUBHEADING_GAP_PX = 28;
+const MOBILE_PORTRAIT_FIRST_SUBHEADING_GAP_PX = 22;
 /** Vertical gap between subheadings on mobile portrait. */
 const MOBILE_PORTRAIT_SUBHEADING_GAP_PX = 14;
 /** Headline stick offset on mobile landscape (flush to top). */
@@ -71,7 +71,7 @@ export function measureHeadlineStickTopPx(): number {
     return top;
   }
 
-  return window.innerHeight * (isMobilePortrait() ? 0.17 : 0.22);
+  return window.innerHeight * (isMobilePortrait() ? 0.1 : 0.22);
 }
 
 function measurePortraitSubheadingStepPx(): number {
