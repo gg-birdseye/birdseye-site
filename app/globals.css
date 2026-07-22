@@ -109,7 +109,6 @@ html.hide-scroll-bar {
   -ms-overflow-style: none;
   --course-mobile-bar-h: calc(6rem + env(safe-area-inset-bottom, 0px));
   --course-mobile-portrait-panel-h: calc(1rem + 2.75rem + 1px);
-  /* 16:9 of width; portrait overrides to reclaim URL-bar chrome into the middle band */
   --course-mobile-portrait-video-h: 56.25vw;
   --course-desktop-footer-h: calc(8.5rem + env(safe-area-inset-bottom, 0px));
   --course-video-logo-size: 9rem;
@@ -727,8 +726,6 @@ html.course-hole-selector-grid-open .course-video-menu {
 
 @media (max-width: 767px) and (orientation: portrait) {
   .course-hole-info-panel {
-    position: fixed;
-    z-index: 31;
     top: var(--course-mobile-portrait-video-h);
     bottom: var(--course-mobile-bar-h);
     transform: none;
@@ -799,12 +796,9 @@ html.course-hole-selector-grid-open .course-video-menu {
 
 @media (max-width: 767px) and (orientation: portrait) {
   .course-video-logo {
-    --course-video-logo-size: 5.5rem;
+    --course-video-logo-size: 4.5rem;
     left: 0.25rem;
-    top: calc(
-      var(--course-mobile-portrait-video-h) - var(--course-video-logo-size) -
-        0.125rem
-    );
+    top: calc(56.25vw - var(--course-video-logo-size) - 0.125rem);
     bottom: auto;
   }
 }
@@ -846,27 +840,12 @@ html.course-hole-selector-grid-open .course-video-menu {
 }
 
 @media (max-width: 767px) and (orientation: portrait) {
-  /*
-   * Size the course sticky to the large viewport so browser chrome hiding
-   * doesn't leave a gap under the middle band. Raise the middle top by the
-   * URL-bar chrome delta so it matches the URL-bar-hidden layout.
-   */
-  html.hide-scroll-bar {
-    --course-mobile-portrait-video-h: max(
-      42vw,
-      calc(56.25vw - (100lvh - 100svh))
-    );
-  }
-
   .course-mobile-sticky {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: var(--course-mobile-portrait-video-h) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
     grid-template-areas:
       "video"
       "spacer";
-    /* Match URL-bar-hidden height; Tailwind h-[100svh] is overridden here. */
-    height: 100lvh !important;
-    min-height: 100svh;
   }
 
   /* Course pages only — landing hero keeps full sticky viewport height. */
@@ -893,27 +872,9 @@ html.course-hole-selector-grid-open .course-video-menu {
     display: none !important;
   }
 
-  /*
-   * Lock the middle band (below video, above panel buttons / footer) the same
-   * way those chrome bars are locked — fixed, not tied to sticky/svh resize.
-   */
   .course-mobile-footer-spacer {
     grid-area: spacer;
-    position: fixed;
-    z-index: 20;
-    top: var(--course-mobile-portrait-video-h);
-    right: 0;
-    left: 0;
-    bottom: var(--course-mobile-bar-h);
     display: block;
-    background-color: #1a1814;
-    pointer-events: none;
-  }
-
-  .course-has-portrait-panel-nav .course-mobile-footer-spacer {
-    bottom: calc(
-      var(--course-mobile-bar-h) + var(--course-mobile-portrait-panel-h)
-    );
   }
 
   .course-mobile-bottom-bar {
