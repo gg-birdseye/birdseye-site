@@ -153,6 +153,8 @@ export function ScrollRevealSubheadings({
     );
     const launchDemo = document.querySelector<HTMLElement>("[data-launch-demo]");
     const contactSection = document.getElementById("contact");
+    /** How far the contact section has pushed the launch demo off-screen (0–1). */
+    let contactExitProgress = 0;
 
     const scrollUpEnd = Number(headlineTrack.dataset.scrollUpEnd);
     const revealEnd = Number(headlineTrack.dataset.revealEnd);
@@ -179,15 +181,57 @@ export function ScrollRevealSubheadings({
       lines.length > 0 ? buildPhaseRatio / lines.length : buildPhaseRatio;
     const revealPortion = 0.38;
 
+    const launchDemoExitDistancePx = () => {
+      // Centered control: clear half the viewport plus ~half the button size.
+      return (
+        window.innerHeight * 0.5 + Math.min(window.innerWidth * 0.42, 160)
+      );
+    };
+
+    const applyLaunchDemoExit = (visibility = 1) => {
+      if (!launchDemo) return;
+      const portrait = isMobilePortraitLayout();
+      const exit = portrait
+        ? contactExitProgress * launchDemoExitDistancePx()
+        : contactExitProgress * window.innerHeight * 0.3;
+      const exitFade = portrait ? Math.max(0, 1 - contactExitProgress) : 1;
+
+      gsap.set(launchDemo, {
+        y: -exit,
+        autoAlpha: visibility * exitFade,
+      });
+    };
+
     const syncLaunchDemoLift = (progress: number) => {
-      if (!launchDemo || reducedMotion) return;
-      const lift = progress * window.innerHeight * 0.3;
-      gsap.set(launchDemo, { y: -lift });
+      contactExitProgress = progress;
+      if (reducedMotion) {
+        applyLaunchDemoExit(1);
+        return;
+      }
+
+      const headlineTrigger = ScrollTrigger.getById("scroll-reveal-headline");
+      const headlineProgress = headlineTrigger?.progress ?? 1;
+      const stackComplete =
+        scrollUpEnd + (1 - scrollUpEnd) * Math.min(1, buildPhaseRatio);
+
+      let visible = 0;
+      if (headlineProgress > stackComplete) {
+        visible = launchDemoFadeAmount(
+          headlineProgress,
+          scrollUpEnd,
+          buildPhaseRatio,
+        );
+      } else if (contactExitProgress > 0) {
+        // Headline track has scrolled away; hideRows left the button on-screen.
+        visible = 1;
+      }
+
+      applyLaunchDemoExit(visible);
     };
 
     const resetLaunchDemoLift = () => {
-      if (!launchDemo) return;
-      gsap.set(launchDemo, { y: 0 });
+      contactExitProgress = 0;
+      if (launchDemo) gsap.set(launchDemo, { y: 0 });
     };
 
     const setSolidBackdropVisible = (visible: boolean) => {
@@ -244,11 +288,6 @@ export function ScrollRevealSubheadings({
         scrollUpEnd,
         buildPhaseRatio,
       );
-      const launchFade = launchDemoFadeAmount(
-        headlineProgress,
-        scrollUpEnd,
-        buildPhaseRatio,
-      );
 
       if (headlineSticky) {
         gsap.set(headlineSticky, { opacity: stackFade });
@@ -276,9 +315,13 @@ export function ScrollRevealSubheadings({
       const stackComplete =
         scrollUpEnd + (1 - scrollUpEnd) * Math.min(1, buildPhaseRatio);
       if (launchDemo) {
-        gsap.set(launchDemo, {
-          autoAlpha: headlineProgress > stackComplete ? launchFade : 0,
-        });
+        const launchFade = launchDemoFadeAmount(
+          headlineProgress,
+          scrollUpEnd,
+          buildPhaseRatio,
+        );
+        const visible = headlineProgress > stackComplete ? launchFade : 0;
+        applyLaunchDemoExit(visible);
       }
 
       return stackFade;
@@ -386,7 +429,15 @@ export function ScrollRevealSubheadings({
       setSolidBackdropVisible(false);
       if (headlineSticky) gsap.set(headlineSticky, { opacity: 1 });
       if (stackFooter) gsap.set(stackFooter, { opacity: 1 });
-      if (launchDemo) gsap.set(launchDemo, { autoAlpha: 1, y: 0 });
+      // Don't yank the launch demo back on-screen if contact has already
+      // started pushing it off (mobile portrait exit).
+      if (launchDemo) {
+        if (contactExitProgress > 0) {
+          applyLaunchDemoExit(1);
+        } else {
+          gsap.set(launchDemo, { autoAlpha: 1, y: 0 });
+        }
+      }
     };
 
     const ctx = gsap.context(() => {
@@ -418,7 +469,10 @@ export function ScrollRevealSubheadings({
         ScrollTrigger.create({
           trigger: contactSection,
           start: "top bottom",
-          end: "top 28%",
+          // Portrait: finish exiting once contact reaches the top so only
+          // "Let's grow the game" and below remain on screen.
+          end: () =>
+            isMobilePortraitLayout() ? "top top" : "top 28%",
           scrub: true,
           invalidateOnRefresh: true,
           onUpdate: (self) => syncLaunchDemoLift(self.progress),
