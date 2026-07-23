@@ -2368,9 +2368,87 @@ html.course-hole-selector-grid-open .course-video-menu {
   display: flex;
   min-height: 0;
   flex: 1;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
   padding: 0 0.25rem 0.25rem;
+  overflow: hidden;
+}
+
+.course-hole-graphic-panel-content > .react-transform-wrapper,
+.course-hole-graphic-zoom-wrapper {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden !important;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: grab;
+}
+
+.course-hole-graphic-zoom-wrapper:active {
+  cursor: grabbing;
+}
+
+.course-hole-graphic-zoom-content {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.course-hole-graphic-zoom-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.course-hole-graphic-zoom-controls {
+  position: absolute;
+  z-index: 5;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  pointer-events: auto;
+}
+
+.course-hole-graphic-zoom-btn {
+  display: inline-flex;
+  min-width: 2.25rem;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.35);
+  padding: 0 0.625rem;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1;
+  backdrop-filter: blur(12px);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.course-hole-graphic-zoom-btn:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+}
+
+.course-hole-graphic-zoom-btn-reset {
+  min-width: auto;
+  padding: 0 0.75rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 /** Collapsible view options — drop arrow in the header row, aligned with the X */

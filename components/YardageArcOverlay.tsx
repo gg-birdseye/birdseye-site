@@ -104,25 +104,17 @@ export function YardageArcOverlay({
     const img = findHoleGraphicImage(container);
     if (!container || !img) return;
 
-    const containerRect = container.getBoundingClientRect();
-    const imgRect = img.getBoundingClientRect();
-    if (imgRect.width <= 0 || imgRect.height <= 0) return;
-
+    // Layout sizes stay stable under CSS zoom/pan transforms; client rects don't.
     const dimensions = readImageDimensions(img);
     const fitted = containedMediaRect(
-      imgRect.width,
-      imgRect.height,
+      container.clientWidth,
+      container.clientHeight,
       dimensions.width,
       dimensions.height,
     );
     if (!fitted) return;
 
-    setMediaRect({
-      left: imgRect.left - containerRect.left + fitted.left,
-      top: imgRect.top - containerRect.top + fitted.top,
-      width: fitted.width,
-      height: fitted.height,
-    });
+    setMediaRect(fitted);
   }, [contentRef]);
 
   useEffect(() => {

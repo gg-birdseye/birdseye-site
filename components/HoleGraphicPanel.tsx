@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import {
+  TransformComponent,
+  TransformWrapper,
+  useControls,
+} from "react-zoom-pan-pinch";
 import type {
   CameraPathPoint,
   HoleGraphic,
@@ -38,6 +43,43 @@ type HoleGraphicPanelProps = {
   onCourseView: () => void;
   onClose?: () => void;
 };
+
+function HoleGraphicZoomControls() {
+  const { zoomIn, zoomOut, resetTransform } = useControls();
+
+  return (
+    <div
+      className="course-hole-graphic-zoom-controls"
+      role="group"
+      aria-label="Hole graphic zoom"
+    >
+      <button
+        type="button"
+        className="course-hole-graphic-zoom-btn"
+        aria-label="Zoom out"
+        onClick={() => zoomOut(0.25, 160)}
+      >
+        −
+      </button>
+      <button
+        type="button"
+        className="course-hole-graphic-zoom-btn"
+        aria-label="Zoom in"
+        onClick={() => zoomIn(0.25, 160)}
+      >
+        +
+      </button>
+      <button
+        type="button"
+        className="course-hole-graphic-zoom-btn course-hole-graphic-zoom-btn-reset"
+        aria-label="Reset zoom"
+        onClick={() => resetTransform(160)}
+      >
+        Reset
+      </button>
+    </div>
+  );
+}
 
 export function HoleGraphicPanel({
   open,
@@ -90,6 +132,26 @@ export function HoleGraphicPanel({
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [actionsOpen]);
+
+  // Block native page pinch while the hole graphic is open.
+  useEffect(() => {
+    if (!open || !holeGraphic) return;
+
+    const preventGesture = (event: Event) => event.preventDefault();
+    const preventPinchTouch = (event: TouchEvent) => {
+      if (event.touches.length > 1) event.preventDefault();
+    };
+
+    document.addEventListener("gesturestart", preventGesture);
+    document.addEventListener("gesturechange", preventGesture);
+    document.addEventListener("touchmove", preventPinchTouch, { passive: false });
+
+    return () => {
+      document.removeEventListener("gesturestart", preventGesture);
+      document.removeEventListener("gesturechange", preventGesture);
+      document.removeEventListener("touchmove", preventPinchTouch);
+    };
+  }, [open, holeGraphic]);
 
   if (!open) return null;
 
@@ -160,6 +222,66 @@ export function HoleGraphicPanel({
     </div>
   );
 
+  const graphicStage = holeGraphic ? (
+    <TransformWrapper
+      key={holeNumber}
+      initialScale={1}
+      minScale={1}
+      maxScale={5}
+      centerOnInit
+      limitToBounds={false}
+      wheel={{ step: 0.08 }}
+      pinch={{ step: 5 }}
+      doubleClick={{ disabled: true }}
+      panning={{
+        excluded: [
+          "course-hole-graphic-zoom-btn",
+          "course-aerial-mode-btn",
+          "course-hole-graphic-panel-menu-btn",
+        ],
+      }}
+      autoAlignment={{ disabled: true }}
+    >
+      <HoleGraphicZoomControls />
+      <TransformComponent
+        wrapperClass="course-hole-graphic-zoom-wrapper"
+        contentClass="course-hole-graphic-zoom-content"
+      >
+        <div ref={contentRef} className="course-hole-graphic-zoom-stage">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={holeGraphic.src}
+            alt={holeGraphic.alt ?? `Hole ${holeNumber} layout`}
+            className="course-hole-graphic-panel-media"
+            draggable={false}
+            onLoad={() => {
+              window.dispatchEvent(new Event("resize"));
+            }}
+          />
+          <YardageArcOverlay
+            contentRef={contentRef}
+            graphicSrc={holeGraphic.src}
+            graphicCdnSrc={holeGraphic.cdnSrc}
+            yardageArcs={yardageArcs}
+            yardageArcRender={yardageArcRender}
+            visible={yardagesVisible}
+          />
+          <CameraPathOverlay
+            contentRef={contentRef}
+            cameraPath={cameraPath}
+            progress={flyoverProgress}
+            onPathSeek={onPathSeek}
+            visible={trackerVisible}
+          />
+        </div>
+      </TransformComponent>
+    </TransformWrapper>
+  ) : (
+    <p className="course-hole-graphic-panel-empty">
+      Upload a hole graphic in Sanity under Hole Flyovers for hole {holeNumber}.
+    </p>
+  );
+
   return (
     <aside
       className={`course-hole-graphic-panel pointer-events-auto${
@@ -199,40 +321,7 @@ export function HoleGraphicPanel({
           </div>
         ) : null}
 
-        <div ref={contentRef} className="course-hole-graphic-panel-content">
-          {holeGraphic ? (
-            <>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={holeGraphic.src}
-                alt={holeGraphic.alt ?? `Hole ${holeNumber} layout`}
-                className="course-hole-graphic-panel-media"
-                onLoad={() => {
-                  window.dispatchEvent(new Event("resize"));
-                }}
-              />
-              <YardageArcOverlay
-                contentRef={contentRef}
-                graphicSrc={holeGraphic.src}
-                graphicCdnSrc={holeGraphic.cdnSrc}
-                yardageArcs={yardageArcs}
-                yardageArcRender={yardageArcRender}
-                visible={yardagesVisible}
-              />
-              <CameraPathOverlay
-                contentRef={contentRef}
-                cameraPath={cameraPath}
-                progress={flyoverProgress}
-                onPathSeek={onPathSeek}
-                visible={trackerVisible}
-              />
-            </>
-          ) : (
-            <p className="course-hole-graphic-panel-empty">
-              Upload a hole graphic in Sanity under Hole Flyovers for hole {holeNumber}.
-            </p>
-          )}
-        </div>
+        <div className="course-hole-graphic-panel-content">{graphicStage}</div>
       </div>
     </aside>
   );

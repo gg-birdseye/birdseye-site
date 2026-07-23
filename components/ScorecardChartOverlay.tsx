@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type MutableRefObject,
   type ReactNode,
 } from "react";
 import {
@@ -88,10 +89,11 @@ const SCORECARD_CHART_HEIGHT = 520;
 const SCORECARD_CHART_MARGIN = { top: 24, right: 20, bottom: 28, left: 56 };
 
 /**
- * Max zoom so the chart can fill empty viewport space above, while keeping the
- * top-of-axis label visible (largest yardage, or HDCP 1 at the top of the scale).
+ * Zoom level where the chart fills the viewport up to the top-of-axis label
+ * (largest yardage / HDCP 1). Used as a soft "fill" threshold — users can zoom
+ * past this to read bars more easily.
  */
-function maxZoomForViewport(
+function fitZoomForViewport(
   viewportWidth: number,
   viewportHeight: number,
   topAxisSvgY: number,
@@ -111,6 +113,9 @@ function maxZoomForViewport(
   const labelPad = 16;
   return Math.max(1, Math.min(16, (viewportHeight - labelPad) / spanToBottom));
 }
+
+/** Hard ceiling for pinch / button zoom — well past y-axis fill for readability. */
+const SCORECARD_MAX_ZOOM = 8;
 
 /** Keeps yardage/HDCP tick labels fixed in screen space while the plot zooms. */
 function ScorecardLockedYAxis({
@@ -224,15 +229,21 @@ function pinScorecardBaseline(instance: {
 /**
  * Keeps the chart anchored to the bottom of the zoom viewport so the X-axis
  * stays visible and bars grow upward instead of getting clipped underneath.
+ * Only while scale is at/under the y-axis fill zoom — past that, free pan.
  */
-function ScorecardPinBaselineToBottom() {
+function ScorecardPinBaselineToBottom({
+  fitZoomRef,
+}: {
+  fitZoomRef: MutableRefObject<number>;
+}) {
   const correctingRef = useRef(false);
 
   useTransformEffect(({ instance }) => {
     // While pinching, the library positions from the touch midpoint. Forcing Y
     // every frame fights that math and makes pinch zoom feel broken. onPinchStop
-    // re-pins after the gesture.
+    // re-pins after the gesture (when still within the fill zoom).
     if (correctingRef.current || instance.isPinching) return;
+    if (instance.state.scale > fitZoomRef.current + 0.04) return;
 
     correctingRef.current = true;
     pinScorecardBaseline(instance);
@@ -441,8 +452,9 @@ export function ScorecardChartOverlay({
 }: ScorecardChartOverlayProps) {
   const [mode, setMode] = useState<ScorecardChartMode>("yardage");
   const [isMobilePortrait, setIsMobilePortrait] = useState(false);
-  const [maxZoomScale, setMaxZoomScale] = useState(1);
+  const [maxZoomScale, setMaxZoomScale] = useState(SCORECARD_MAX_ZOOM);
   const zoomFrameRef = useRef<HTMLDivElement>(null);
+  const fitZoomRef = useRef(1);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px) and (orientation: portrait)");
@@ -552,7 +564,8 @@ export function ScorecardChartOverlay({
 
   useEffect(() => {
     if (!open || !isMobilePortrait) {
-      setMaxZoomScale(1);
+      fitZoomRef.current = 1;
+      setMaxZoomScale(SCORECARD_MAX_ZOOM);
       return;
     }
 
@@ -568,8 +581,11 @@ export function ScorecardChartOverlay({
 
       const update = () => {
         const rect = frame.getBoundingClientRect();
+        const fit = fitZoomForViewport(rect.width, rect.height, topAxisSvgY);
+        fitZoomRef.current = fit;
+        // Allow zooming well past y-axis fill so bar values stay readable.
         setMaxZoomScale(
-          maxZoomForViewport(rect.width, rect.height, topAxisSvgY),
+          Math.min(SCORECARD_MAX_ZOOM, Math.max(fit * 3, 5)),
         );
       };
 
@@ -857,16 +873,22 @@ export function ScorecardChartOverlay({
                       doubleClick={{ disabled: true }}
                       panning={{
                         velocityDisabled: true,
-                        lockAxisY: true,
                       }}
                       // Prevent the library from vertically re-centering after pinch.
                       autoAlignment={{ disabled: true }}
                       zoomAnimation={{ disabled: true }}
                       onPinchStop={(ref) => {
-                        pinScorecardBaseline(ref.instance);
+                        // Only re-pin to the baseline while within y-axis fill zoom.
+                        // Past that, leave the pinch midpoint so the user can pan.
+                        if (
+                          ref.instance.state.scale <=
+                          fitZoomRef.current + 0.04
+                        ) {
+                          pinScorecardBaseline(ref.instance);
+                        }
                       }}
                     >
-                      <ScorecardPinBaselineToBottom />
+                      <ScorecardPinBaselineToBottom fitZoomRef={fitZoomRef} />
                       <ScorecardLockedYAxis
                         ticks={scale.ticks}
                         chartWidth={chartWidth}
@@ -883,7 +905,7 @@ export function ScorecardChartOverlay({
                     </TransformWrapper>
                   </div>
                   <p className="course-scorecard-chart-zoom-hint">
-                    Pinch or use + / − · Drag sideways
+                    Pinch or use + / − · Drag to pan
                   </p>
                 </div>
               ) : (

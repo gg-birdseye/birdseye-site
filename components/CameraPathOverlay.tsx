@@ -79,14 +79,15 @@ export function CameraPathOverlay({
     );
     if (!img) return;
 
-    const containerRect = container.getBoundingClientRect();
+    // Use layout sizes (not getBoundingClientRect) so overlays stay aligned
+    // when the graphic is inside a CSS zoom/pan transform.
     const dimensions = readImageDimensions(img);
     if (!dimensions) return;
 
     setMediaRect(
       containedMediaRect(
-        containerRect.width,
-        containerRect.height,
+        container.clientWidth,
+        container.clientHeight,
         dimensions.width,
         dimensions.height,
       ),
