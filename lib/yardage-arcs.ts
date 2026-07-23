@@ -566,3 +566,46 @@ export function buildClippedCirclePath(
 
   return parts.join(" ");
 }
+
+/**
+ * Place a yardage label at the rightmost visible point of a clipped arc
+ * (where the dashed stroke meets the playable edge), nudged slightly outward.
+ */
+export function yardageLabelAtArcRightEdge(
+  cx: number,
+  cy: number,
+  radius: number,
+  isAllowed: ((x: number, y: number) => boolean) | null,
+  sampleCount = 360,
+  outwardNudgePx = 10,
+): { x: number; y: number } {
+  if (radius < 2) {
+    return { x: cx + outwardNudgePx, y: cy };
+  }
+
+  if (!isAllowed) {
+    return { x: cx + radius + outwardNudgePx, y: cy };
+  }
+
+  let bestX = -Infinity;
+  let bestY = cy;
+  let found = false;
+
+  for (let i = 0; i < sampleCount; i += 1) {
+    const angle = (i / sampleCount) * Math.PI * 2;
+    const x = cx + Math.cos(angle) * radius;
+    const y = cy + Math.sin(angle) * radius;
+    if (!isAllowed(x, y)) continue;
+    if (x > bestX) {
+      bestX = x;
+      bestY = y;
+      found = true;
+    }
+  }
+
+  if (!found) {
+    return { x: cx + radius + outwardNudgePx, y: cy };
+  }
+
+  return { x: bestX + outwardNudgePx, y: bestY };
+}

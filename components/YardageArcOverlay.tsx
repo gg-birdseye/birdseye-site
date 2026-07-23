@@ -19,6 +19,7 @@ import {
   resolveArcAllowTest,
   sortMarkersByYards,
   yardageArcsAreReady,
+  yardageLabelAtArcRightEdge,
   yardageMarkerRadiusPx,
   type HoleGraphicPlayableMask,
   type YardageArcsData,
@@ -172,59 +173,82 @@ export function YardageArcOverlay({
 
     const pin = yardageArcs.pin;
     const canClipLocally = hasCustomClip || playableMask != null;
-
-    // Prefer locally clipped paths once the mask (or custom clip) is ready.
-    if (canClipLocally) {
-      const center = pinToMediaPx(pin, mediaRect.width, mediaRect.height);
-      const isAllowed = resolveArcAllowTest(
-        yardageArcs.arcClip,
-        playableMask,
-        mediaRect.width,
-        mediaRect.height,
-      );
-
-      return markers.map((marker, index) => {
-        const radius = yardageMarkerRadiusPx(
-          pin,
-          marker,
+    const center = pinToMediaPx(pin, mediaRect.width, mediaRect.height);
+    const isAllowed = canClipLocally
+      ? resolveArcAllowTest(
+          yardageArcs.arcClip,
+          playableMask,
           mediaRect.width,
           mediaRect.height,
-        );
-        return {
-          key: `${marker.yards}-${index}`,
-          pathD: buildClippedCirclePath(center.x, center.y, radius, isAllowed),
-          labelX: (marker.x / 100) * mediaRect.width,
-          labelY: (marker.y / 100) * mediaRect.height,
-          yards: marker.yards,
-        };
-      });
-    }
+        )
+      : null;
 
-    // While the mask loads, use server-precomputed paths if they look valid.
-    if (usableServerRender) {
-      return yardageArcRender.paths.map((arc, index) => ({
-        key: `${arc.yards}-${index}`,
-        pathD: arc.pathD,
-        labelX: arc.labelX,
-        labelY: arc.labelY,
-        yards: arc.yards,
-      }));
-    }
-
-    // Last resort: full circles (CSS mask still clips to the hole silhouette).
-    const center = pinToMediaPx(pin, mediaRect.width, mediaRect.height);
-    return markers.map((marker, index) => {
+    const labelFor = (marker: (typeof markers)[number]) => {
       const radius = yardageMarkerRadiusPx(
         pin,
         marker,
         mediaRect.width,
         mediaRect.height,
       );
+      const edge = yardageLabelAtArcRightEdge(
+        center.x,
+        center.y,
+        radius,
+        isAllowed,
+      );
+      return {
+        labelX: Math.min(mediaRect.width - 6, Math.max(6, edge.x)),
+        labelY: Math.min(mediaRect.height - 8, Math.max(12, edge.y)),
+        radius,
+      };
+    };
+
+    // Prefer locally clipped paths once the mask (or custom clip) is ready.
+    if (canClipLocally) {
+      return markers.map((marker, index) => {
+        const { labelX, labelY, radius } = labelFor(marker);
+        return {
+          key: `${marker.yards}-${index}`,
+          pathD: buildClippedCirclePath(center.x, center.y, radius, isAllowed),
+          labelX,
+          labelY,
+          yards: marker.yards,
+        };
+      });
+    }
+
+    // While the mask loads, still park labels on the right of each radius.
+    if (usableServerRender) {
+      return yardageArcRender.paths.map((arc, index) => {
+        const marker = markers[index];
+        if (marker) {
+          const { labelX, labelY } = labelFor(marker);
+          return {
+            key: `${arc.yards}-${index}`,
+            pathD: arc.pathD,
+            labelX,
+            labelY,
+            yards: arc.yards,
+          };
+        }
+        return {
+          key: `${arc.yards}-${index}`,
+          pathD: arc.pathD,
+          labelX: Math.min(mediaRect.width - 6, arc.labelX),
+          labelY: arc.labelY,
+          yards: arc.yards,
+        };
+      });
+    }
+
+    // Last resort: full circles (CSS mask still clips to the hole silhouette).
+    return markers.map((marker, index) => {
+      const { labelX, labelY, radius } = labelFor(marker);
       return {
         key: `${marker.yards}-${index}`,
         pathD: buildClippedCirclePath(center.x, center.y, radius, null),
-        labelX: (marker.x / 100) * mediaRect.width,
-        labelY: (marker.y / 100) * mediaRect.height,
+        labelX,
+        labelY,
         yards: marker.yards,
       };
     });
@@ -244,12 +268,11 @@ export function YardageArcOverlay({
   const useServerViewBox = usableServerRender && playableMask == null && !hasCustomClip;
   const viewW = useServerViewBox ? yardageArcRender.width : mediaRect.width;
   const viewH = useServerViewBox ? yardageArcRender.height : mediaRect.height;
-  const pinX = useServerViewBox
-    ? yardageArcRender.pinX
-    : pinToMediaPx(yardageArcs.pin, mediaRect.width, mediaRect.height).x;
-  const pinY = useServerViewBox
-    ? yardageArcRender.pinY
-    : pinToMediaPx(yardageArcs.pin, mediaRect.width, mediaRect.height).y;
+  const pinInMedia = pinToMediaPx(
+    yardageArcs.pin,
+    mediaRect.width,
+    mediaRect.height,
+  );
 
   // Clip strokes to the hole graphic's alpha so arcs never paint the dark panel,
   // even if the green mask is late or missing.
@@ -302,38 +325,45 @@ export function YardageArcOverlay({
         </svg>
       </div>
 
-      {/* Labels stay unmasked so markers remain readable */}
+      {/* Labels sit at the right arc edge (unmasked) so hole detail stays clear */}
       <div className="course-hole-graphic-yardage-layer" style={layerBoxStyle}>
         <svg
           className="course-hole-graphic-yardage-labels"
           width={mediaRect.width}
           height={mediaRect.height}
-          viewBox={`0 0 ${viewW} ${viewH}`}
+          viewBox={`0 0 ${mediaRect.width} ${mediaRect.height}`}
           preserveAspectRatio="none"
         >
-          {arcPaths.map((arc) => (
-            <g key={`label-${arc.key}`}>
-              <rect
-                x={arc.labelX - 20}
-                y={arc.labelY - 24}
-                width={40}
-                height={18}
-                rx={4}
-                className="course-hole-graphic-yardage-label-bg"
-              />
-              <text
-                x={arc.labelX}
-                y={arc.labelY - 11}
-                textAnchor="middle"
-                className="course-hole-graphic-yardage-label"
-              >
-                {arc.yards}
-              </text>
-            </g>
-          ))}
+          {arcPaths.map((arc) => {
+            const labelW = 40;
+            const labelH = 18;
+            // Left-align the pill just past the arc fade-out on the right.
+            const rectX = Math.min(arc.labelX, mediaRect.width - labelW - 2);
+            const rectY = arc.labelY - labelH / 2;
+            return (
+              <g key={`label-${arc.key}`}>
+                <rect
+                  x={rectX}
+                  y={rectY}
+                  width={labelW}
+                  height={labelH}
+                  rx={4}
+                  className="course-hole-graphic-yardage-label-bg"
+                />
+                <text
+                  x={rectX + labelW / 2}
+                  y={rectY + labelH / 2 + 4}
+                  textAnchor="middle"
+                  className="course-hole-graphic-yardage-label"
+                >
+                  {arc.yards}
+                </text>
+              </g>
+            );
+          })}
           <circle
-            cx={pinX}
-            cy={pinY}
+            cx={pinInMedia.x}
+            cy={pinInMedia.y}
             r={5}
             className="course-hole-graphic-yardage-pin"
           />
