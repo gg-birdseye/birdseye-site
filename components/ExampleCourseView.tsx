@@ -4,7 +4,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { CourseMenuButton } from "@/components/CourseMenuButton";
 import { HoleSelectorOverlay } from "@/components/HoleSelectorOverlay";
 import { ExampleCourseLogo } from "@/components/ExampleCourseLogo";
@@ -263,6 +263,8 @@ export function ExampleCourseView({
       window.matchMedia("(min-width: 768px) and (min-height: 601px)").matches,
   );
   const progressFillRef = useRef<HTMLDivElement>(null);
+  const progressWrapRef = useRef<HTMLDivElement>(null);
+  const progressScrubbingRef = useRef(false);
   const activeHoleRef = useRef(1);
   const syncedFromUrl = useRef(false);
 
@@ -345,20 +347,61 @@ export function ExampleCourseView({
   );
 
   const goToFlyoverProgress = useCallback(
-    (t: number) => {
+    (t: number, options?: { refresh?: boolean }) => {
       const clamped = Math.min(1, Math.max(0, t));
       if (perHoleMode) {
-        scrollTrackToProgress(clamped);
+        scrollTrackToProgress(clamped, "instant", options);
       } else {
         const hole = activeHoleRef.current;
         const start = holeToProgress(hole, holeCount);
         const end = hole >= holeCount ? 1 : holeToProgress(hole + 1, holeCount);
-        scrollTrackToProgress(start + clamped * (end - start));
+        scrollTrackToProgress(start + clamped * (end - start), "instant", options);
       }
       setBarProgress(clamped);
       setFlyoverProgress(clamped);
     },
     [holeCount, perHoleMode, setBarProgress],
+  );
+
+  const progressFromClientX = useCallback((clientX: number) => {
+    const wrap = progressWrapRef.current;
+    if (!wrap) return 0;
+    const rect = wrap.getBoundingClientRect();
+    if (rect.width <= 0) return 0;
+    return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+  }, []);
+
+  const onProgressPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0 && event.pointerType === "mouse") return;
+      event.preventDefault();
+      progressScrubbingRef.current = true;
+      event.currentTarget.setPointerCapture(event.pointerId);
+      goToFlyoverProgress(progressFromClientX(event.clientX), { refresh: false });
+    },
+    [goToFlyoverProgress, progressFromClientX],
+  );
+
+  const onProgressPointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (!progressScrubbingRef.current) return;
+      event.preventDefault();
+      goToFlyoverProgress(progressFromClientX(event.clientX), { refresh: false });
+    },
+    [goToFlyoverProgress, progressFromClientX],
+  );
+
+  const onProgressPointerUp = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (!progressScrubbingRef.current) return;
+      progressScrubbingRef.current = false;
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      // One refresh after the scrub gesture settles.
+      ScrollTrigger.refresh();
+    },
+    [],
   );
 
   const displayHole = perHoleMode ? selectedHole : scrubHole;
@@ -1010,11 +1053,40 @@ export function ExampleCourseView({
             />
           </Link>
 
-          <div className="course-mobile-progress-wrap relative mx-1 h-3 min-w-0 flex-1 md:mx-3">
-            <div className="absolute bottom-0 left-0 right-0 h-1 rounded-full bg-white/15" />
+          <div
+            ref={progressWrapRef}
+            className="course-mobile-progress-wrap relative mx-1 h-3 min-w-0 flex-1 touch-none md:mx-3"
+            role="slider"
+            tabIndex={0}
+            aria-label="Video progress"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(flyoverProgress * 100)}
+            aria-valuetext={`${Math.round(flyoverProgress * 100)} percent`}
+            onPointerDown={onProgressPointerDown}
+            onPointerMove={onProgressPointerMove}
+            onPointerUp={onProgressPointerUp}
+            onPointerCancel={onProgressPointerUp}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
+                event.preventDefault();
+                goToFlyoverProgress(flyoverProgress - 0.04);
+              } else if (event.key === "ArrowRight" || event.key === "ArrowUp") {
+                event.preventDefault();
+                goToFlyoverProgress(flyoverProgress + 0.04);
+              } else if (event.key === "Home") {
+                event.preventDefault();
+                goToFlyoverProgress(0);
+              } else if (event.key === "End") {
+                event.preventDefault();
+                goToFlyoverProgress(1);
+              }
+            }}
+          >
+            <div className="course-mobile-progress-track absolute bottom-0 left-0 right-0 h-1 rounded-full bg-white/15" />
             <div
               ref={progressFillRef}
-              className="absolute bottom-0 h-1 rounded-full"
+              className="course-mobile-progress-fill absolute bottom-0 h-1 rounded-full"
               style={{
                 width: "0%",
                 backgroundColor: "#00cdac",

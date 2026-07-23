@@ -115,7 +115,7 @@ html.hide-scroll-bar {
   --course-video-fullscreen-size: 2.75rem;
   --course-video-fullscreen-inset: 1.25rem;
   --course-mobile-landscape-nav-w: 18%;
-  --course-mobile-landscape-bar-h: 2px;
+  --course-mobile-landscape-bar-h: 1.75rem;
   --course-hole-nav-inset: 0.75rem;
   --course-hole-nav-inset-desktop: 2rem;
   --course-hole-selector-btn-size: 4rem;
@@ -893,6 +893,19 @@ html.course-hole-selector-grid-open .course-video-menu {
   display: none;
 }
 
+.course-mobile-progress-wrap {
+  cursor: pointer;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.course-mobile-progress-wrap:focus-visible {
+  outline: 2px solid rgba(0, 205, 172, 0.7);
+  outline-offset: 2px;
+  border-radius: 9999px;
+}
+
 /** Mobile portrait — panel nav above footer (Scorecard / Aerial / Courses) */
 .course-mobile-portrait-panel-bar {
   display: none;
@@ -1043,9 +1056,9 @@ html.course-hole-selector-grid-open .course-video-menu {
     bottom: 0;
     z-index: 40;
     width: auto;
-    height: var(--course-mobile-landscape-bar-h) !important;
-    min-height: var(--course-mobile-landscape-bar-h) !important;
-    max-height: var(--course-mobile-landscape-bar-h) !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
     border: none !important;
     background: transparent !important;
     backdrop-filter: none !important;
@@ -1055,22 +1068,24 @@ html.course-hole-selector-grid-open .course-video-menu {
   }
 
   .course-mobile-bottom-bar > div {
-    height: 100%;
+    height: 1.75rem;
     min-height: 0;
     padding: 0 !important;
     gap: 0 !important;
-    align-items: stretch;
+    align-items: flex-end;
   }
 
   .course-mobile-bottom-bar .course-mobile-progress-wrap {
     position: relative;
     flex: 1;
-    height: 100% !important;
+    height: 1.75rem !important;
     margin: 0 !important;
+    cursor: pointer;
   }
 
-  .course-mobile-bottom-bar .course-mobile-progress-wrap > div {
-    height: 100% !important;
+  .course-mobile-bottom-bar .course-mobile-progress-track,
+  .course-mobile-bottom-bar .course-mobile-progress-fill {
+    height: 2px !important;
     border-radius: 0 !important;
   }
 

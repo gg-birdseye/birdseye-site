@@ -37,6 +37,7 @@ export function holeLocalScrollProgress(
 export function scrollTrackToProgress(
   progress: number,
   behavior: ScrollBehavior = "instant",
+  options?: { refresh?: boolean },
 ) {
   if (typeof window === "undefined") return;
   const track = document.querySelector<HTMLElement>("[data-scrolly-track]");
@@ -50,7 +51,9 @@ export function scrollTrackToProgress(
   window.scrollTo({ top: y, behavior });
   requestAnimationFrame(() => {
     trigger.update();
-    ScrollTrigger.refresh();
+    if (options?.refresh !== false) {
+      ScrollTrigger.refresh();
+    }
   });
 }
 
