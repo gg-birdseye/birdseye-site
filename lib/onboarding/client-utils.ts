@@ -33,7 +33,7 @@ export function resolvePlan(client: Client): PlanInterval {
 }
 
 export function resolvePriceCents(client: Client): number | null {
-  if (client.customPriceCents) return client.customPriceCents;
+  if (client.customPriceCents != null) return client.customPriceCents;
 
   if (
     client.quotedSubtotalCents != null &&
@@ -67,7 +67,7 @@ export function buildPaymentSummaryFromClient(
   const withCourses = client as ClientWithCourses;
   let courseLines: PaymentSummaryCourseLine[] | undefined;
 
-  if (withCourses.courses?.length && !client.customPriceCents) {
+  if (withCourses.courses?.length && client.customPriceCents == null) {
     const quote = calculateMultiCourseQuote(
       withCourses.courses.map((course) => ({
         courseName: course.courseName,

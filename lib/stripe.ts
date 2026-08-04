@@ -59,7 +59,7 @@ export function getStripePriceIdForClient(client: Client): string | null {
     return null;
   }
 
-  if (client.customPriceCents) {
+  if (client.customPriceCents != null) {
     return null;
   }
 

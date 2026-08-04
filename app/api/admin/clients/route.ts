@@ -163,9 +163,9 @@ export async function POST(request: Request) {
 
   let customPriceCents: number | null = null;
   if (body.customPriceCents != null) {
-    if (!Number.isFinite(body.customPriceCents) || body.customPriceCents <= 0) {
+    if (!Number.isFinite(body.customPriceCents) || body.customPriceCents < 0) {
       return NextResponse.json(
-        { error: "Custom price must be a positive number." },
+        { error: "Custom price must be zero or a positive number." },
         { status: 400 },
       );
     }

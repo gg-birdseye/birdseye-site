@@ -125,13 +125,14 @@ export function formatScheduleAText(
     client.multiCourseDiscountCents && client.multiCourseDiscountCents > 0
       ? `${formatPrice(client.multiCourseDiscountCents / 100)} (${client.multiCourseDiscountPercent}% multi-course discount)`
       : null;
-  const total = client.customPriceCents
-    ? formatPrice(client.customPriceCents / 100)
-    : client.quotedSubtotalCents && client.multiCourseDiscountCents
-      ? formatPrice(
-          (client.quotedSubtotalCents - client.multiCourseDiscountCents) / 100,
-        )
-      : subtotal;
+  const total =
+    client.customPriceCents != null
+      ? formatPrice(client.customPriceCents / 100)
+      : client.quotedSubtotalCents && client.multiCourseDiscountCents
+        ? formatPrice(
+            (client.quotedSubtotalCents - client.multiCourseDiscountCents) / 100,
+          )
+        : subtotal;
 
   return [
     `Organization: ${org}`,

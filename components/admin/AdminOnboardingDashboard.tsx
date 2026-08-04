@@ -55,7 +55,7 @@ function parseCourseFormRow(row: CourseFormRow) {
   let customUnitPriceCents: number | null = null;
   if (isOther && row.customPriceDollars.trim()) {
     const parsed = Number(row.customPriceDollars.trim());
-    if (Number.isFinite(parsed) && parsed > 0) {
+    if (Number.isFinite(parsed) && parsed >= 0) {
       customUnitPriceCents = Math.round(parsed * 100);
     }
   }
@@ -152,7 +152,7 @@ export function AdminOnboardingDashboard() {
     let customPriceCents: number | null = null;
     if (customPriceRaw) {
       const parsed = Number(customPriceRaw);
-      if (!Number.isFinite(parsed) || parsed <= 0) return null;
+      if (!Number.isFinite(parsed) || parsed < 0) return null;
       customPriceCents = Math.round(parsed * 100);
     }
 
@@ -452,13 +452,13 @@ export function AdminOnboardingDashboard() {
         }
         if (
           isStandardHoleTier(parsed.customHoleCount!) &&
-          !parsed.customUnitPriceCents
+          parsed.customUnitPriceCents == null
         ) {
           throw new Error(
             `${parsed.courseName}: ${parsed.customHoleCount} holes matches a standard tier — choose 9, 18, or 27 instead of Other.`,
           );
         }
-        if (!parsed.customUnitPriceCents) {
+        if (parsed.customUnitPriceCents == null) {
           throw new Error(
             `Enter a custom price for ${parsed.courseName || "custom course"}.`,
           );
@@ -469,8 +469,8 @@ export function AdminOnboardingDashboard() {
       let customPriceCents: number | null = null;
       if (customPriceDollars) {
         const parsed = Number(customPriceDollars);
-        if (!Number.isFinite(parsed) || parsed <= 0) {
-          throw new Error("Custom price must be a positive number.");
+        if (!Number.isFinite(parsed) || parsed < 0) {
+          throw new Error("Custom price must be zero or a positive number.");
         }
         customPriceCents = Math.round(parsed * 100);
       }

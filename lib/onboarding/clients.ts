@@ -125,7 +125,7 @@ export async function createClientInvite(input: CreateInviteInput) {
         ];
 
   const quote = calculateMultiCourseQuote(courseLines, plan);
-  if (!quote && !input.customPriceCents) {
+  if (!quote && input.customPriceCents == null) {
     throw new Error(
       "Unable to price this deal. Use standard hole counts (9, 18, 27) or set a custom price.",
     );

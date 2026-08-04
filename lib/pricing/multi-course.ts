@@ -58,7 +58,7 @@ export function getLineUnitPriceCents(
   line: CourseLineInput,
   plan: PlanInterval,
 ): number | null {
-  if (line.customUnitPriceCents != null && line.customUnitPriceCents > 0) {
+  if (line.customUnitPriceCents != null && line.customUnitPriceCents >= 0) {
     return line.customUnitPriceCents;
   }
   return getTierPriceCents(resolveLineHoleCount(line), plan);
