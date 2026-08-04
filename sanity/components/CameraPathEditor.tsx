@@ -23,6 +23,31 @@ type PathPointItem = {
   _key: string
   x: number
   y: number
+  videoProgress?: number
+}
+
+function clampProgressPercent(value: number) {
+  if (!Number.isFinite(value)) return 0
+  return Math.min(100, Math.max(0, value))
+}
+
+/** Keep start at 0%, end at 100%, and leave midpoints as set (or even defaults). */
+function withEndpointProgress(points: PathPointItem[]): PathPointItem[] {
+  if (points.length === 0) return points
+  return points.map((point, index, arr) => {
+    if (index === 0) return { ...point, videoProgress: 0 }
+    if (index === arr.length - 1) return { ...point, videoProgress: 100 }
+    if (typeof point.videoProgress === 'number' && Number.isFinite(point.videoProgress)) {
+      return {
+        ...point,
+        videoProgress: clampProgressPercent(point.videoProgress),
+      }
+    }
+    return {
+      ...point,
+      videoProgress: clampProgressPercent((index / (arr.length - 1)) * 100),
+    }
+  })
 }
 
 type HoleGraphicFileValue = {
@@ -124,8 +149,9 @@ export function CameraPathEditor(props: ArrayOfObjectsInputProps) {
         _key: makePointKey(points.length),
         x,
         y,
+        videoProgress: 100,
       }
-      setPoints([...points, next])
+      setPoints(withEndpointProgress([...points, next]))
     },
     [points, setPoints],
   )
@@ -137,9 +163,25 @@ export function CameraPathEditor(props: ArrayOfObjectsInputProps) {
     [points, setPoints],
   )
 
+  const updatePointVideoProgress = useCallback(
+    (index: number, videoProgress: number) => {
+      if (index <= 0 || index >= points.length - 1) return
+      setPoints(
+        withEndpointProgress(
+          points.map((point, i) =>
+            i === index
+              ? { ...point, videoProgress: clampProgressPercent(videoProgress) }
+              : point,
+          ),
+        ),
+      )
+    },
+    [points, setPoints],
+  )
+
   const removePoint = useCallback(
     (index: number) => {
-      setPoints(points.filter((_, i) => i !== index))
+      setPoints(withEndpointProgress(points.filter((_, i) => i !== index)))
     },
     [points, setPoints],
   )
@@ -214,7 +256,8 @@ export function CameraPathEditor(props: ArrayOfObjectsInputProps) {
           ? `Hole ${holeNumber}: click the graphic to add path points (start → waypoints → end).`
           : 'Click the graphic to add path points (start → waypoints → end).'}
         {' '}
-        Stops at 10%, 20%, … are generated automatically on the course page.
+        Set Video progress (%) on midpoints to match the flyover — e.g. 30 means that
+        point is reached when the video is 30% complete. Start is always 0%, end is 100%.
       </Text>
 
       {!mediaUrl ? (
@@ -325,6 +368,59 @@ export function CameraPathEditor(props: ArrayOfObjectsInputProps) {
           ) : null}
         </Box>
       )}
+
+      {points.length > 1 ? (
+        <Stack space={2}>
+          <Text size={1} weight="semibold">
+            Video progress at each point
+          </Text>
+          {points.map((point, index) => {
+            const isStart = index === 0
+            const isEnd = index === points.length - 1
+            const value = isStart
+              ? 0
+              : isEnd
+                ? 100
+                : typeof point.videoProgress === 'number' &&
+                    Number.isFinite(point.videoProgress)
+                  ? point.videoProgress
+                  : Math.round((index / (points.length - 1)) * 1000) / 10
+            return (
+              <Flex key={point._key ?? makePointKey(index)} align="center" gap={3}>
+                <Text size={1} style={{ minWidth: '5.5rem' }}>
+                  Point {index + 1}
+                  {isStart ? ' (start)' : isEnd ? ' (end)' : ''}
+                </Text>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={value}
+                  disabled={isStart || isEnd}
+                  aria-label={`Video progress for point ${index + 1}`}
+                  onChange={(event) => {
+                    const next = Number(event.currentTarget.value)
+                    updatePointVideoProgress(index, next)
+                  }}
+                  style={{
+                    width: '5.5rem',
+                    padding: '0.35rem 0.5rem',
+                    borderRadius: '4px',
+                    border: '1px solid var(--card-border-color, #444)',
+                    background: 'var(--card-bg-color, #111)',
+                    color: 'inherit',
+                    opacity: isStart || isEnd ? 0.65 : 1,
+                  }}
+                />
+                <Text size={1} muted>
+                  % through video
+                </Text>
+              </Flex>
+            )
+          })}
+        </Stack>
+      ) : null}
 
       {props.renderDefault(props)}
     </Stack>

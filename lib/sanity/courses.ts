@@ -45,6 +45,8 @@ export type HoleGraphic = {
 export type CameraPathPoint = {
   x: number;
   y: number;
+  /** Absolute flyover video progress at this waypoint (0–100%). */
+  videoProgress?: number;
 };
 
 export type HoleFlyoverDoc = {
@@ -341,7 +343,8 @@ const holeFlyoverProjection = `
   },
   cameraPath[] {
     x,
-    y
+    y,
+    videoProgress
   },
   yardageArcs {
     pin { x, y },
@@ -430,10 +433,16 @@ function resolveHoleFrames(
 function resolveCameraPath(hole: HoleFlyoverDoc): CameraPathPoint[] | undefined {
   if (!Array.isArray(hole.cameraPath) || hole.cameraPath.length < 2) return undefined;
   const points = hole.cameraPath
-    .map((point) => ({
-      x: typeof point.x === "number" ? point.x : NaN,
-      y: typeof point.y === "number" ? point.y : NaN,
-    }))
+    .map((point) => {
+      const x = typeof point.x === "number" ? point.x : NaN;
+      const y = typeof point.y === "number" ? point.y : NaN;
+      const videoProgress =
+        typeof point.videoProgress === "number" &&
+        Number.isFinite(point.videoProgress)
+          ? Math.min(100, Math.max(0, point.videoProgress))
+          : undefined;
+      return videoProgress != null ? { x, y, videoProgress } : { x, y };
+    })
     .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
   return points.length >= 2 ? points : undefined;
 }

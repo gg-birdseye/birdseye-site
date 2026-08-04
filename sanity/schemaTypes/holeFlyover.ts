@@ -53,7 +53,7 @@ export default defineType({
       type: 'array',
       of: [{ type: 'cameraPathPoint' }],
       description:
-        'Draw the camera movement path on the hole graphic. Click-to-place in order: start → waypoints → end. Auto stops at 10%, 20%, … appear on the course page.',
+        'Draw the camera movement path on the hole graphic. Click-to-place in order: start → waypoints → end. Set Video progress (%) on midpoints (e.g. 30, 90) to match where each point lands in the flyover clip.',
       components: {
         input: CameraPathEditor,
       },
