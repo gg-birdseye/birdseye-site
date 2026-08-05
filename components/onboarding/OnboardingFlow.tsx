@@ -48,6 +48,13 @@ export function OnboardingFlow({
   const [billingCity, setBillingCity] = useState(() => client.billingCity ?? "");
   const [billingState, setBillingState] = useState(() => client.billingState ?? "");
   const [billingZip, setBillingZip] = useState(() => client.billingZip ?? "");
+  const [billingAddressLine1, setBillingAddressLine1] = useState(
+    () => client.billingAddressLine1 ?? "",
+  );
+  const [billingAddressLine2, setBillingAddressLine2] = useState(
+    () => client.billingAddressLine2 ?? "",
+  );
+  const [billingSameAsCourse, setBillingSameAsCourse] = useState(false);
 
   const step = getOnboardingStep(currentClient);
   const awaitingActivation = checkoutStatus === "success" && step < 4;
@@ -120,7 +127,21 @@ export function OnboardingFlow({
     setBillingCity(currentClient.billingCity ?? "");
     setBillingState(currentClient.billingState ?? "");
     setBillingZip(currentClient.billingZip ?? "");
+    setBillingAddressLine1(currentClient.billingAddressLine1 ?? "");
+    setBillingAddressLine2(currentClient.billingAddressLine2 ?? "");
+    setBillingSameAsCourse(false);
   }, [currentClient.id]);
+
+  useEffect(() => {
+    if (!billingSameAsCourse) return;
+    const source = courseLocations[0];
+    if (!source) return;
+    setBillingAddressLine1(source.courseAddressLine1);
+    setBillingAddressLine2("");
+    setBillingCity(source.courseCity);
+    setBillingState(source.courseState);
+    setBillingZip(source.courseZip);
+  }, [billingSameAsCourse, courseLocations]);
 
   useEffect(() => {
     if (checkoutStatus !== "success" || step >= 4) return;
@@ -182,8 +203,8 @@ export function OnboardingFlow({
           contactTitle: form.get("contactTitle"),
           contactEmail: form.get("contactEmail"),
           contactPhone: contactPhone.trim() || null,
-          billingAddressLine1: form.get("billingAddressLine1"),
-          billingAddressLine2: form.get("billingAddressLine2"),
+          billingAddressLine1,
+          billingAddressLine2,
           billingCity,
           billingState,
           billingZip,
@@ -410,28 +431,63 @@ export function OnboardingFlow({
                 onChange={setCourseLocations}
               />
             </div>
-            <Field label="Billing address" className="md:col-span-2">
-              <input
-                name="billingAddressLine1"
-                required
-                defaultValue={currentClient.billingAddressLine1 ?? ""}
-                className={inputClassName}
-              />
-            </Field>
-            <Field label="Address line 2" className="md:col-span-2">
-              <input
-                name="billingAddressLine2"
-                defaultValue={currentClient.billingAddressLine2 ?? ""}
-                className={inputClassName}
-              />
-            </Field>
+            <div className="md:col-span-2 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm font-medium text-stone-300">Billing address</p>
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-stone-300">
+                  <input
+                    type="checkbox"
+                    checked={billingSameAsCourse}
+                    onChange={(event) => setBillingSameAsCourse(event.target.checked)}
+                    className="rounded border-white/20 bg-black/40 text-birdseye-500 focus:ring-birdseye-400/40"
+                  />
+                  <span>
+                    {isMultiCourse
+                      ? "Same as first course location"
+                      : "Same as course location"}
+                  </span>
+                </label>
+              </div>
+              <Field label="Street address">
+                <input
+                  name="billingAddressLine1"
+                  required
+                  value={billingAddressLine1}
+                  onChange={(event) => {
+                    setBillingSameAsCourse(false);
+                    setBillingAddressLine1(event.target.value);
+                  }}
+                  className={inputClassName}
+                />
+              </Field>
+              <Field label="Address line 2">
+                <input
+                  name="billingAddressLine2"
+                  value={billingAddressLine2}
+                  onChange={(event) => {
+                    setBillingSameAsCourse(false);
+                    setBillingAddressLine2(event.target.value);
+                  }}
+                  className={inputClassName}
+                />
+              </Field>
+            </div>
             <BillingCityStateFields
               city={billingCity}
               state={billingState}
               zip={billingZip}
-              onCityChange={setBillingCity}
-              onStateChange={setBillingState}
-              onZipChange={setBillingZip}
+              onCityChange={(value) => {
+                setBillingSameAsCourse(false);
+                setBillingCity(value);
+              }}
+              onStateChange={(value) => {
+                setBillingSameAsCourse(false);
+                setBillingState(value);
+              }}
+              onZipChange={(value) => {
+                setBillingSameAsCourse(false);
+                setBillingZip(value);
+              }}
             />
             <div className="md:col-span-2">
               {paymentSummary ? (
