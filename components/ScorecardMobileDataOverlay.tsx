@@ -173,9 +173,9 @@ export function ScorecardMobileDataOverlay({
               <span className="course-scorecard-data-stat-value">{hdcp}</span>
             </div>
           </div>
-
-          <p className="course-scorecard-data-scroll-hint">Scroll to fly</p>
         </div>
+
+        <p className="course-scorecard-data-scroll-hint">Scroll to fly</p>
 
         {teeOptions.length > 1 ? (
           <div

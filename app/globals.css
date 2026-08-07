@@ -2123,7 +2123,8 @@ html.course-hole-selector-grid-open .course-video-menu {
   align-items: center;
   justify-content: center;
   gap: 0.25rem;
-  padding: 0.5rem 0.5rem 1rem;
+  padding: 0.5rem 0.5rem 0.5rem;
+  overflow: hidden;
   text-align: center;
   pointer-events: auto;
   touch-action: none;
@@ -2184,20 +2185,24 @@ html.course-hole-selector-grid-open .course-video-menu {
 }
 
 .course-scorecard-data-scroll-hint {
-  margin: 1.5rem 0 0;
+  margin: 0;
+  padding: 0.35rem 0.5rem 0.5rem;
+  flex-shrink: 0;
+  text-align: center;
   font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.35);
+  pointer-events: none;
 }
 
 .course-scorecard-data-tee-bar {
   display: flex;
   shrink: 0;
   gap: 0.25rem;
-  margin-top: auto;
-  padding: 0.5rem 0 0.25rem;
+  margin-top: 0;
+  padding: 0.25rem 0 0.25rem;
   pointer-events: auto;
 }
 
