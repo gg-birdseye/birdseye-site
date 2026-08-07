@@ -187,7 +187,7 @@ export type ScorecardTeeData = {
 
 export type CourseScorecardData = {
   teeCount: number;
-  /** When true, the scorecard UI should offer a Men's/Women's toggle. */
+  /** True when women's ratings/par/handicap exist in CMS (not the chart M/W toggle). */
   hasWomenRatings: boolean;
   tees: ScorecardTeeData[];
   /** Primary tee yardages (1-indexed by hole). */
@@ -853,6 +853,40 @@ export function courseHasWomenScorecard(course: CourseDoc | null): boolean {
     for (const entry of row.tees ?? []) {
       if (entryHasWomenPar(entry)) return true;
       if (entryHasWomenHandicap(entry)) return true;
+    }
+  }
+  return false;
+}
+
+function scorecardHoleValuesDiffer(
+  men: string[] | undefined,
+  women: string[] | undefined,
+): boolean {
+  const len = Math.max(men?.length ?? 0, women?.length ?? 0);
+  for (let i = 1; i < len; i += 1) {
+    const m = (men?.[i] ?? "").trim();
+    const w = (women?.[i] ?? "").trim();
+    if (m !== w) return true;
+  }
+  return false;
+}
+
+/**
+ * True when switching M/W would change HDCP or yardage chart values.
+ * Yardages are not gender-split in CMS today; handicaps are.
+ */
+export function scorecardHasGenderChartDifferences(
+  data: CourseScorecardData | null | undefined,
+): boolean {
+  if (!data?.tees?.length) return false;
+  for (const tee of data.tees) {
+    if (
+      scorecardHoleValuesDiffer(
+        tee.handicapsByGender.men,
+        tee.handicapsByGender.women,
+      )
+    ) {
+      return true;
     }
   }
   return false;

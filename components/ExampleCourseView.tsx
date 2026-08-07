@@ -12,9 +12,14 @@ import { AerialPanelOverlay } from "@/components/AerialPanelOverlay";
 import { HoleGraphicPanel } from "@/components/HoleGraphicPanel";
 import { CoursePanelOverlay } from "@/components/CoursePanelOverlay";
 import { ScorecardChartOverlay, type ScorecardChartTee } from "@/components/ScorecardChartOverlay";
+import {
+  ScorecardMobileDataOverlay,
+  type ScorecardMobileTee,
+} from "@/components/ScorecardMobileDataOverlay";
 import { ScrollyVideoSection } from "@/components/ScrollyVideoSection";
 import {
   scorecardDisplayTotalPar,
+  scorecardHasGenderChartDifferences,
   scorecardParsForGender,
   scorecardTeeForGender,
   type CourseAerialMapData,
@@ -247,7 +252,9 @@ export function ExampleCourseView({
     null,
   );
   const [aerialViewMode, setAerialViewMode] = useState<"course" | "hole">("hole");
-  const showScorecardGenderToggle = Boolean(scorecardData?.hasWomenRatings);
+  const showScorecardGenderToggle = scorecardHasGenderChartDifferences(
+    scorecardData,
+  );
   const [holeDescOpen, setHoleDescOpen] = useState(false);
   const [scrollHintDismissed, setScrollHintDismissed] = useState(false);
   const [scrollHintKey, setScrollHintKey] = useState(0);
@@ -294,6 +301,16 @@ export function ExampleCourseView({
       desktopMq.removeEventListener("change", update);
     };
   }, []);
+
+  // Portrait scorecard → landscape: return to video with left nav inactive.
+  const wasMobilePortraitRef = useRef(isMobilePortrait);
+  useEffect(() => {
+    const wasPortrait = wasMobilePortraitRef.current;
+    wasMobilePortraitRef.current = isMobilePortrait;
+    if (wasPortrait && !isMobilePortrait && panelOpen === "scorecard") {
+      setPanelOpen(null);
+    }
+  }, [isMobilePortrait, panelOpen]);
 
   const panelBlocksHoleSelector =
     panelOpen === "scorecard" ||
@@ -572,6 +589,7 @@ export function ExampleCourseView({
         name: ["Black", "Blue", "Gold", "White", "Green", "Gray"][selectedTee] ?? `Tee ${selectedTee + 1}`,
         yardages: [...teeYardages].map((value) => String(value)),
         handicaps: [...DEMO_HOLE_HDCP].map((value) => String(value)),
+        pars: [...DEMO_HOLE_PAR].map((value) => String(value)),
       };
     }
     if (scorecardData?.tees[selectedTee]) {
@@ -583,20 +601,59 @@ export function ExampleCourseView({
         name: tee.name,
         yardages: tee.yardages,
         handicaps: tee.handicaps,
+        pars: tee.pars,
       };
     }
     return {
       name: "Yardage",
       yardages: yardages.map((value) => String(value)),
       handicaps: hdcp.map((value) => String(value)),
+      pars: Array.from({ length: holeCount + 1 }, (_, hole) =>
+        hole === 0 ? "—" : String(parForHole(hole)),
+      ),
     };
   }, [
     demoScorecard,
     hdcp,
+    holeCount,
+    parForHole,
     scorecardData,
     selectedTee,
     yardages,
     scorecardGender,
+    showScorecardGenderToggle,
+  ]);
+
+  const mobileTee = useMemo((): ScorecardMobileTee => {
+    if (demoScorecard) {
+      return {
+        ...chartTee,
+        pars: DEMO_HOLE_PAR.map((value) => String(value)),
+      };
+    }
+    if (scorecardData?.tees[selectedTee]) {
+      const tee = scorecardTeeForGender(
+        scorecardData.tees[selectedTee],
+        showScorecardGenderToggle ? scorecardGender : "men",
+      );
+      return {
+        name: tee.name,
+        yardages: tee.yardages,
+        handicaps: tee.handicaps,
+        pars: tee.pars,
+      };
+    }
+    return {
+      ...chartTee,
+      pars: (parsForGender ?? []).map((value) => String(value ?? "—")),
+    };
+  }, [
+    chartTee,
+    demoScorecard,
+    parsForGender,
+    scorecardData,
+    scorecardGender,
+    selectedTee,
     showScorecardGenderToggle,
   ]);
 
@@ -958,23 +1015,37 @@ export function ExampleCourseView({
         }
       />
 
-      <ScorecardChartOverlay
-        open={panelOpen === "scorecard"}
-        holeCount={holeCount}
-        activeHole={activeHole}
-        teeColor={selectedTeeColor}
-        tee={chartTee}
-        teeOptions={teeOptions}
-        selectedTee={selectedTee}
-        onTeeSelect={setSelectedTee}
-        onHoleSelect={goToHole}
-        onClose={() => setPanelOpen(null)}
-        showGenderToggle={showScorecardGenderToggle}
-        scorecardGender={scorecardGender}
-        onGenderChange={setScorecardGender}
-        totalPar={selectedTeeTotalPar ?? teeOptions[selectedTee]?.totalPar}
-        allTeeYardages={allTeeYardages}
-      />
+      {isMobilePortrait ? (
+        <ScorecardMobileDataOverlay
+          open={panelOpen === "scorecard"}
+          activeHole={activeHole}
+          teeColor={selectedTeeColor}
+          tee={mobileTee}
+          teeOptions={teeOptions}
+          selectedTee={selectedTee}
+          onTeeSelect={setSelectedTee}
+          onClose={() => setPanelOpen(null)}
+          totalPar={selectedTeeTotalPar ?? teeOptions[selectedTee]?.totalPar}
+        />
+      ) : (
+        <ScorecardChartOverlay
+          open={panelOpen === "scorecard"}
+          holeCount={holeCount}
+          activeHole={activeHole}
+          teeColor={selectedTeeColor}
+          tee={chartTee}
+          teeOptions={teeOptions}
+          selectedTee={selectedTee}
+          onTeeSelect={setSelectedTee}
+          onHoleSelect={goToHole}
+          onClose={() => setPanelOpen(null)}
+          showGenderToggle={showScorecardGenderToggle}
+          scorecardGender={scorecardGender}
+          onGenderChange={setScorecardGender}
+          totalPar={selectedTeeTotalPar ?? teeOptions[selectedTee]?.totalPar}
+          allTeeYardages={allTeeYardages}
+        />
+      )}
 
       <CoursePanelOverlay
         open={panelOpen === "courses" && Boolean(pagePanels.courses)}
@@ -1039,8 +1110,8 @@ export function ExampleCourseView({
       ) : null}
 
       {/* Pinned outside the inset-0 chrome so iOS scroll-scrub can't shift it */}
-      <div className="course-mobile-bottom-bar pointer-events-auto border-t border-white/10 bg-gradient-to-t from-black/80 via-black/55 to-transparent backdrop-blur-lg max-md:min-h-[var(--course-mobile-bar-h)]">
-        <div className="flex min-w-0 items-center gap-2 overflow-hidden px-3 py-2 md:gap-3 md:px-5 md:py-3">
+      <div className="course-mobile-bottom-bar">
+        <div className="course-mobile-bottom-bar-inner flex min-w-0 items-center gap-2 overflow-hidden">
           <Link
             href="/"
             className="course-mobile-bar-logo flex min-w-0 shrink-0 items-center rounded-md px-1 py-1"

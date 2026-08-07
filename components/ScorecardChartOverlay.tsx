@@ -24,6 +24,8 @@ export type ScorecardChartTee = {
   name: string;
   yardages: string[];
   handicaps: string[];
+  /** Per-hole par (1-indexed), same length convention as yardages/handicaps. */
+  pars?: string[];
 };
 
 export type ScorecardChartTeeOption = {
@@ -86,7 +88,12 @@ function svgMeetYMaxLayout(
 
 const SCORECARD_CHART_WIDTH = 1000;
 const SCORECARD_CHART_HEIGHT = 520;
-const SCORECARD_CHART_MARGIN = { top: 24, right: 20, bottom: 28, left: 56 };
+const SCORECARD_CHART_MARGIN = { top: 28, right: 20, bottom: 38, left: 56 };
+/** Compact margins for landscape — aspect ratio preserved (no SVG stretch). */
+const SCORECARD_CHART_MARGIN_LANDSCAPE = { top: 16, right: 12, bottom: 36, left: 52 };
+
+const CHART_LABEL_SIZE = { axis: 16, hole: 26, value: 22 } as const;
+const CHART_LABEL_SIZE_LANDSCAPE = { axis: 18, hole: 28, value: 24 } as const;
 
 /**
  * Zoom level where the chart fills the viewport up to the top-of-axis label
@@ -317,7 +324,7 @@ function buildYTicks(min: number, max: number, count = 5): number[] {
 }
 
 const INACTIVE_BAR_FILL = "rgba(255,255,255,0.28)";
-const BAR_ACCENT_HEIGHT = 4;
+const BAR_ACCENT_HEIGHT = 8;
 const BAR_CORNER_RADIUS = 3;
 /** Extra handicap units below 18 so easiest holes still show a visible bar. */
 const HDCP_AXIS_BOTTOM_PAD = 2;
@@ -451,23 +458,81 @@ export function ScorecardChartOverlay({
   allTeeYardages,
 }: ScorecardChartOverlayProps) {
   const [mode, setMode] = useState<ScorecardChartMode>("yardage");
-  const [isMobilePortrait, setIsMobilePortrait] = useState(false);
+  /** Pinch/zoom is portrait-only — never on landscape or desktop. */
+  const [enableChartZoom, setEnableChartZoom] = useState(false);
+  const [isLandscapePhone, setIsLandscapePhone] = useState(false);
+  /** Wider viewBox on landscape so bars fill width without stretching text. */
+  const [landscapeViewWidth, setLandscapeViewWidth] = useState(SCORECARD_CHART_WIDTH);
   const [maxZoomScale, setMaxZoomScale] = useState(SCORECARD_MAX_ZOOM);
   const zoomFrameRef = useRef<HTMLDivElement>(null);
+  const chartBodyRef = useRef<HTMLDivElement>(null);
   const fitZoomRef = useRef(1);
 
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 767px) and (orientation: portrait)");
-    const update = () => setIsMobilePortrait(mq.matches);
+    const portraitMq = window.matchMedia(
+      "(max-width: 767px) and (orientation: portrait)",
+    );
+    const landscapePhoneMq = window.matchMedia(
+      "(orientation: landscape) and (max-height: 600px)",
+    );
+    const update = () => {
+      setIsLandscapePhone(landscapePhoneMq.matches);
+      setEnableChartZoom(portraitMq.matches && !landscapePhoneMq.matches);
+    };
     update();
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
+    portraitMq.addEventListener("change", update);
+    landscapePhoneMq.addEventListener("change", update);
+    return () => {
+      portraitMq.removeEventListener("change", update);
+      landscapePhoneMq.removeEventListener("change", update);
+    };
   }, []);
+
+  useEffect(() => {
+    if (!open || !isLandscapePhone) {
+      setLandscapeViewWidth(SCORECARD_CHART_WIDTH);
+      return;
+    }
+
+    let observer: ResizeObserver | null = null;
+    let raf = 0;
+
+    const attach = () => {
+      const node = chartBodyRef.current;
+      if (!node) {
+        raf = requestAnimationFrame(attach);
+        return;
+      }
+
+      const updateWidth = () => {
+        const width = node.clientWidth;
+        const height = node.clientHeight;
+        if (width <= 0 || height <= 0) return;
+        // Match the container aspect so `meet` fills L–R without distorting glyphs.
+        setLandscapeViewWidth(
+          Math.max(
+            SCORECARD_CHART_WIDTH,
+            Math.round(SCORECARD_CHART_HEIGHT * (width / height)),
+          ),
+        );
+      };
+
+      updateWidth();
+      observer = new ResizeObserver(updateWidth);
+      observer.observe(node);
+    };
+
+    attach();
+    return () => {
+      cancelAnimationFrame(raf);
+      observer?.disconnect();
+    };
+  }, [open, isLandscapePhone, mode, selectedTee, scorecardGender]);
 
   // Stop Safari page-pinch from eating chart gestures. Chrome trackpad pinch is
   // ctrl+wheel — that must reach react-zoom-pan-pinch, so we don't block wheel here.
   useEffect(() => {
-    if (!open || !isMobilePortrait) return;
+    if (!open || !enableChartZoom) return;
 
     const preventGesture = (event: Event) => event.preventDefault();
     const preventPinchTouch = (event: TouchEvent) => {
@@ -485,7 +550,7 @@ export function ScorecardChartOverlay({
       document.removeEventListener("gestureend", preventGesture);
       document.removeEventListener("touchmove", preventPinchTouch);
     };
-  }, [open, isMobilePortrait]);
+  }, [open, enableChartZoom]);
 
   const holes = useMemo(
     () => Array.from({ length: holeCount }, (_, index) => index + 1),
@@ -521,24 +586,29 @@ export function ScorecardChartOverlay({
       const values = points
         .map((point) => point.value)
         .filter((v): v is number => v != null);
+      const hdcpTicks = [3, 6, 9, 12, 15, 18];
       if (!values.length) {
-        return { min: 1, max: 18, ticks: [1, 3, 6, 9, 12, 15, 18] };
+        return { min: 1, max: 18, ticks: hdcpTicks };
       }
       const rawMax = Math.max(...values);
       const min = 1;
       const max = Math.max(18, Math.ceil(rawMax));
-      return { min, max, ticks: buildYTicks(min, max, 6) };
+      return { min, max, ticks: hdcpTicks };
     }
 
     if (!yardageAxisValues.length) {
-      return { min: 0, max: 600, ticks: [0, 150, 300, 450, 600] };
+      return { min: 0, max: 600, ticks: [100, 200, 300, 400, 500, 600] };
     }
 
     const rawMax = Math.max(...yardageAxisValues);
     const min = 0;
-    const padding = Math.max(20, rawMax * 0.08);
-    const max = Math.ceil((rawMax + padding) / 10) * 10;
-    return { min, max, ticks: buildYTicks(min, max, 5) };
+    // Always show 100…600; extend by 100s only if a hole exceeds 600.
+    const max = Math.max(600, Math.ceil(rawMax / 100) * 100);
+    const ticks: number[] = [];
+    for (let value = 100; value <= max; value += 100) {
+      ticks.push(value);
+    }
+    return { min, max, ticks };
   }, [mode, points, yardageAxisValues]);
 
   const topAxisSvgY = useMemo(() => {
@@ -563,7 +633,7 @@ export function ScorecardChartOverlay({
   }, [mode, scale.max, scale.min]);
 
   useEffect(() => {
-    if (!open || !isMobilePortrait) {
+    if (!open || !enableChartZoom) {
       fitZoomRef.current = 1;
       setMaxZoomScale(SCORECARD_MAX_ZOOM);
       return;
@@ -599,19 +669,22 @@ export function ScorecardChartOverlay({
       cancelAnimationFrame(raf);
       observer?.disconnect();
     };
-  }, [open, isMobilePortrait, topAxisSvgY, mode]);
+  }, [open, enableChartZoom, topAxisSvgY, mode]);
 
   if (!open) return null;
 
-  const chartWidth = SCORECARD_CHART_WIDTH;
+  const chartWidth = isLandscapePhone ? landscapeViewWidth : SCORECARD_CHART_WIDTH;
   const chartHeight = SCORECARD_CHART_HEIGHT;
-  const margin = SCORECARD_CHART_MARGIN;
+  const margin = isLandscapePhone
+    ? SCORECARD_CHART_MARGIN_LANDSCAPE
+    : SCORECARD_CHART_MARGIN;
+  const labelSize = isLandscapePhone ? CHART_LABEL_SIZE_LANDSCAPE : CHART_LABEL_SIZE;
   const innerW = chartWidth - margin.left - margin.right;
   const innerH = chartHeight - margin.top - margin.bottom;
   const barGap = innerW / holeCount;
   const barWidth = Math.max(8, barGap * 0.76);
   const chartBaseline = margin.top + innerH;
-  const holeLabelInset = 10;
+  const holeLabelInset = isLandscapePhone ? 18 : 16;
 
   const yFor = (value: number) => {
     const range = Math.max(scale.max - scale.min, 1);
@@ -624,26 +697,40 @@ export function ScorecardChartOverlay({
   };
 
   const plotInsetStyle = {
-    "--chart-plot-inset-left": `${(margin.left / chartWidth) * 100}%`,
-    "--chart-plot-inset-right": `${(margin.right / chartWidth) * 100}%`,
+    "--chart-plot-inset-left": isLandscapePhone
+      ? "0%"
+      : `${(margin.left / chartWidth) * 100}%`,
+    "--chart-plot-inset-right": isLandscapePhone
+      ? "0%"
+      : `${(margin.right / chartWidth) * 100}%`,
   } as CSSProperties;
+
+  /** Align par cells with bar centers (SVG plot area), including landscape. */
+  const parRowInsetStyle = {
+    marginLeft: `${(margin.left / chartWidth) * 100}%`,
+    marginRight: `${(margin.right / chartWidth) * 100}%`,
+  } as CSSProperties;
+
+  const holePars = tee.pars ?? [];
 
   return (
     <div
-      className="course-scorecard-chart pointer-events-auto"
+      className={`course-scorecard-chart pointer-events-auto${
+        isLandscapePhone ? " course-scorecard-chart--landscape-phone" : ""
+      }`}
       role="dialog"
       aria-label={`${tee.name} scorecard chart`}
     >
       <div className="course-scorecard-chart-inner">
         <div className="course-scorecard-chart-toolbar">
           <div className="course-scorecard-chart-toolbar-title min-w-0">
-            {totalPar?.trim() ? (
-              <p className="truncate font-sans text-lg uppercase text-white md:text-xl">
-                PAR {totalPar.trim()}
-              </p>
-            ) : null}
-            <p className="mt-0.5 truncate font-sans text-lg uppercase text-white md:text-xl">
-              {tee.name}
+            <p className="course-scorecard-chart-toolbar-title-text truncate font-sans text-lg uppercase text-white md:text-xl">
+              {[
+                totalPar?.trim() ? `PAR ${totalPar.trim()}` : null,
+                tee.name?.trim() || null,
+              ]
+                .filter(Boolean)
+                .join(" / ")}
             </p>
           </div>
 
@@ -718,7 +805,7 @@ export function ScorecardChartOverlay({
           <div className="course-scorecard-chart-stack">
             {(() => {
               const renderChartBody = (showYAxisLabels: boolean): ReactNode => (
-                <div className="course-scorecard-chart-body">
+                <div ref={chartBodyRef} className="course-scorecard-chart-body">
                   <svg
                     viewBox={`0 0 ${chartWidth} ${chartHeight}`}
                     preserveAspectRatio="xMidYMax meet"
@@ -748,10 +835,11 @@ export function ScorecardChartOverlay({
                           {showYAxisLabels && tick !== 0 ? (
                             <text
                               x={margin.left - 10}
-                              y={y + 4}
+                              y={y + 5}
                               textAnchor="end"
-                              fill="rgba(255,255,255,0.45)"
-                              fontSize={12}
+                              fill="rgba(255,255,255,0.55)"
+                              fontSize={labelSize.axis}
+                              fontWeight={600}
                             >
                               {tick}
                             </text>
@@ -776,8 +864,8 @@ export function ScorecardChartOverlay({
                               y={holeLabelY}
                               textAnchor="middle"
                               fill={isActive ? "#fff" : "rgba(255,255,255,0.45)"}
-                              fontSize={12}
-                              fontWeight={isActive ? 600 : 400}
+                              fontSize={labelSize.hole}
+                              fontWeight={isActive ? 700 : 600}
                             >
                               {point.hole}
                             </text>
@@ -828,11 +916,11 @@ export function ScorecardChartOverlay({
                           {isActive ? (
                             <text
                               x={centerX}
-                              y={Math.max(margin.top + 14, barTop - 8)}
+                              y={Math.max(margin.top + 20, barTop - 12)}
                               textAnchor="middle"
                               fill="#fff"
-                              fontSize={11}
-                              fontWeight={600}
+                              fontSize={labelSize.value}
+                              fontWeight={700}
                             >
                               {value}
                             </text>
@@ -842,8 +930,8 @@ export function ScorecardChartOverlay({
                             y={holeLabelY}
                             textAnchor="middle"
                             fill={isActive ? "#fff" : "rgba(255,255,255,0.85)"}
-                            fontSize={12}
-                            fontWeight={isActive ? 600 : 500}
+                            fontSize={labelSize.hole}
+                            fontWeight={isActive ? 700 : 600}
                           >
                             {point.hole}
                           </text>
@@ -854,7 +942,7 @@ export function ScorecardChartOverlay({
                 </div>
               );
 
-              return isMobilePortrait ? (
+              return enableChartZoom ? (
                 <div className="course-scorecard-chart-zoom">
                   <div
                     ref={zoomFrameRef}
@@ -912,6 +1000,30 @@ export function ScorecardChartOverlay({
                 renderChartBody(true)
               );
             })()}
+
+            <div
+              className="course-scorecard-chart-par-row"
+              style={parRowInsetStyle}
+              aria-label="Par by hole"
+            >
+              {Array.from({ length: holeCount }, (_, index) => {
+                const hole = index + 1;
+                const raw = holePars[hole]?.trim() ?? "";
+                const label =
+                  raw && raw !== "—" && raw !== "-" && raw !== "0" ? raw : "·";
+                const isActive = hole === activeHole;
+                return (
+                  <span
+                    key={hole}
+                    className={`course-scorecard-chart-par-cell tabular-nums${
+                      isActive ? " is-active" : ""
+                    }`}
+                  >
+                    {label}
+                  </span>
+                );
+              })}
+            </div>
 
             {teeOptions.length > 1 ? (
               <div className="course-scorecard-chart-tee-bar">
