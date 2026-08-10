@@ -1308,48 +1308,6 @@ const courseBySlugQuery = defineQuery(`
   }
 `);
 
-const siteSettingsHeroListQuery = defineQuery(`
-  *[_type == "siteSettings"] | order(_updatedAt desc) {
-    _id,
-    homeHeroVideo {
-      ${muxAssetProjection}
-    }
-  }
-`);
-
-type SiteSettingsHeroRow = {
-  _id: string;
-  homeHeroVideo?: MuxVideoField;
-};
-
-export async function getSiteSettingsHeroUrls(): Promise<CoursePlaybackUrls | null> {
-  const docs = await sanityClient.fetch(
-    siteSettingsHeroListQuery,
-    {},
-    sanityFetchOptions(),
-  );
-  const list: SiteSettingsHeroRow[] = Array.isArray(docs) ? docs : [];
-  const sorted = [...list].sort((a, b) => {
-    const ak = a._id === "siteSettings" ? 1 : 0;
-    const bk = b._id === "siteSettings" ? 1 : 0;
-    return bk - ak;
-  });
-  if (process.env.NODE_ENV === "development" && sorted.length > 0) {
-    console.info(
-      "[birdseye] siteSettings candidates for home hero:",
-      sorted.map((d) => ({
-        _id: d._id,
-        playbackId: d.homeHeroVideo?.asset?.playbackId ?? null,
-      })),
-    );
-  }
-  for (const doc of sorted) {
-    const urls = muxVideoFieldUrls(doc.homeHeroVideo);
-    if (urls) return urls;
-  }
-  return null;
-}
-
 /** Primary playback for a course page — active hole, or first hole with a video. */
 export function coursePrimaryPlayback(
   course: CourseDoc | null,
@@ -1376,12 +1334,6 @@ export async function getCourseBySlug(
     { slug },
     sanityFetchOptions(),
   );
-}
-
-/** Latest updated course — used for marketing homepage hero when Sanity has content */
-export async function getLatestCourseForHero(): Promise<CourseDoc | null> {
-  const list = await getCoursesList();
-  return list[0] ?? null;
 }
 
 export async function getFirstPublishedSlug(): Promise<string | null> {
