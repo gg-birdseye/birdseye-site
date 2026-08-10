@@ -51,7 +51,31 @@ export default defineType({
         source: 'title',
         maxLength: 96,
       },
-      validation: (Rule) => Rule.required(),
+      description:
+        'Public URL path (birdseye.golf/{slug}). Avoid reserved paths like admin, api, courses, pricing.',
+      validation: (Rule) =>
+        Rule.required().custom((value) => {
+          const current =
+            typeof value === 'string'
+              ? value
+              : value && typeof value === 'object' && 'current' in value
+                ? String((value as { current?: string }).current ?? '')
+                : '';
+          const slug = current.trim().toLowerCase();
+          const reserved = new Set([
+            'admin',
+            'api',
+            'courses',
+            'onboarding',
+            'pricing',
+            'refer',
+            'studio',
+          ]);
+          if (reserved.has(slug)) {
+            return `“${slug}” is reserved. Choose a different course slug.`;
+          }
+          return true;
+        }),
     }),
     defineField({
       name: 'holeCount',

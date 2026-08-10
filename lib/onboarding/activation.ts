@@ -1,6 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { clients, getDb, type Client, type ClientCourse } from "@/lib/db";
+import { isReservedCourseSlug } from "@/lib/courses/reserved-slugs";
 import { slugifyCourseName } from "@/lib/onboarding/tokens";
 import { resolveHoleCount } from "@/lib/onboarding/client-utils";
 import {
@@ -15,10 +16,11 @@ import {
 } from "@/lib/sanity/create-course-stub";
 
 function uniqueCourseSlug(base: string, existingSlugs: Set<string>) {
-  let slug = base;
+  let candidate = isReservedCourseSlug(base) ? `${base}-course` : base;
+  let slug = candidate;
   let suffix = 2;
-  while (existingSlugs.has(slug)) {
-    slug = `${base}-${suffix}`;
+  while (existingSlugs.has(slug) || isReservedCourseSlug(slug)) {
+    slug = `${candidate}-${suffix}`;
     suffix += 1;
   }
   existingSlugs.add(slug);
@@ -62,7 +64,7 @@ async function ensureClientCourseSanityStub(
   });
 
   if (courseSlug) {
-    revalidatePath(`/courses/${courseSlug}`);
+    revalidatePath(`/${courseSlug}`);
   }
 
   return updated ?? { ...course, courseSlug, sanityCourseId };
@@ -133,7 +135,7 @@ async function ensureLegacyClientSanityCourse(client: Client) {
   const updated = await updateClientSanityLink(client.id, courseSlug, sanityCourseId);
   if (updated) {
     if (courseSlug) {
-      revalidatePath(`/courses/${courseSlug}`);
+      revalidatePath(`/${courseSlug}`);
       revalidatePath("/courses");
     }
     return { client: updated, sanityCourseId };
@@ -241,7 +243,7 @@ export async function activateClient(clientId: string) {
     .returning();
 
   if (courseSlug) {
-    revalidatePath(`/courses/${courseSlug}`);
+    revalidatePath(`/${courseSlug}`);
   }
   revalidatePath("/courses");
 
@@ -279,11 +281,11 @@ export async function setClientBillingStatus(
   const courseRows = await getClientCourses(clientId);
   for (const course of courseRows) {
     if (course.courseSlug) {
-      revalidatePath(`/courses/${course.courseSlug}`);
+      revalidatePath(`/${course.courseSlug}`);
     }
   }
   if (updated?.courseSlug) {
-    revalidatePath(`/courses/${updated.courseSlug}`);
+    revalidatePath(`/${updated.courseSlug}`);
   }
   revalidatePath("/courses");
 

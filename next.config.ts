@@ -10,8 +10,9 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
-        source: "/example-course",
-        destination: "/courses/example-course",
+        // Legacy course URLs → root slug pages
+        source: "/courses/:slug",
+        destination: "/:slug",
         permanent: true,
       },
     ];

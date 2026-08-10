@@ -37,7 +37,7 @@ export function CoursePanelOverlay({
                 return (
                   <Link
                     key={course._key ?? `${course.slug}-${index}`}
-                    href={`/courses/${course.slug}`}
+                    href={`/${course.slug}`}
                     className="course-courses-panel-btn"
                   >
                     {label}

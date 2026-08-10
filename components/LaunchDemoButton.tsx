@@ -58,7 +58,7 @@ export function LaunchDemoButton() {
 
   return (
     <Link
-      href="/courses/example-course"
+      href="/example-course"
       className={`${styles.root} ${hovered ? styles.hovered : ""}`}
       aria-label="Preview course"
       onPointerEnter={activate}

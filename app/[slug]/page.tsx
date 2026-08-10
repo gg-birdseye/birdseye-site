@@ -5,6 +5,7 @@ import { CourseUnavailable } from "@/components/CourseUnavailable";
 import { ExampleCourseView } from "@/components/ExampleCourseView";
 import { JsonLd } from "@/components/JsonLd";
 import { getCourseAccessBySlug } from "@/lib/billing/access";
+import { isReservedCourseSlug } from "@/lib/courses/reserved-slugs";
 import {
   courseAerialMap,
   courseContactInfo,
@@ -37,6 +38,13 @@ function courseOgImage(
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
+  if (isReservedCourseSlug(slug)) {
+    return {
+      title: "Course | BirdsEye",
+      robots: { index: false, follow: false },
+    };
+  }
+
   const course = await getCourseBySlug(slug);
   if (!course) {
     return {
@@ -66,7 +74,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     primary?.posterUrl,
     courseLogoSrc(course),
   );
-  const canonicalPath = `/courses/${slug}`;
+  const canonicalPath = `/${slug}`;
 
   return {
     title: metaTitle,
@@ -91,6 +99,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function CoursePage({ params }: Props) {
   const { slug } = await params;
+  if (isReservedCourseSlug(slug)) notFound();
+
   const access = await getCourseAccessBySlug(slug);
   if (!access.allowed) {
     return <CourseUnavailable reason={access.reason} />;
@@ -117,7 +127,7 @@ export default async function CoursePage({ params }: Props) {
     primary.posterUrl,
     courseLogoSrc(course) ?? undefined,
   );
-  const pageUrl = absoluteUrl(`/courses/${slug}`);
+  const pageUrl = absoluteUrl(`/${slug}`);
 
   return (
     <>

@@ -28,7 +28,7 @@ export function CourseThumbnailGrid({ courses }: CourseThumbnailGridProps) {
         return (
           <li key={course._id}>
             <Link
-              href={`/courses/${course.slug}`}
+              href={`/${course.slug}`}
               aria-label={title}
               className="group relative block aspect-square overflow-hidden rounded-md border border-white/10 bg-white/[0.04] transition hover:border-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-birdseye-300"
             >

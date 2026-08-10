@@ -46,7 +46,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           !inactiveSlugs.has(course.slug as string),
       )
       .map((course) => ({
-        url: absoluteUrl(`/courses/${course.slug}`),
+        url: absoluteUrl(`/${course.slug}`),
         lastModified: course._updatedAt
           ? new Date(course._updatedAt)
           : now,
