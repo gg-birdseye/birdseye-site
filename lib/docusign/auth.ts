@@ -4,6 +4,8 @@ import { getDocuSignConfig } from "@/lib/docusign/config";
 type TokenCache = {
   accessToken: string;
   expiresAt: number;
+  /** Account-specific REST host, e.g. https://na4.docusign.net/restapi */
+  apiBaseUrl: string;
 };
 
 let tokenCache: TokenCache | null = null;
@@ -49,14 +51,63 @@ function createJwtAssertion(config: NonNullable<ReturnType<typeof getDocuSignCon
   return `${unsigned}.${base64Url(signature)}`;
 }
 
+function restApiBaseFromAccountUri(baseUri: string) {
+  return `${baseUri.replace(/\/$/, "")}/restapi`;
+}
+
+async function resolveApiBaseUrl(
+  config: NonNullable<ReturnType<typeof getDocuSignConfig>>,
+  accessToken: string,
+) {
+  // Optional override, e.g. https://na4.docusign.net/restapi
+  const configured = process.env.DOCUSIGN_API_BASE_URL?.trim();
+  if (configured) {
+    return configured.replace(/\/$/, "");
+  }
+
+  const response = await fetch(`${config.oauthBaseUrl}/oauth/userinfo`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    return config.apiBaseUrl;
+  }
+
+  const info = (await response.json()) as {
+    accounts?: Array<{
+      account_id?: string;
+      is_default?: boolean;
+      base_uri?: string;
+    }>;
+  };
+
+  const accounts = info.accounts ?? [];
+  const matched =
+    accounts.find((a) => a.account_id === config.accountId && a.base_uri) ??
+    accounts.find((a) => a.is_default && a.base_uri) ??
+    accounts.find((a) => a.base_uri);
+
+  if (!matched?.base_uri) {
+    return config.apiBaseUrl;
+  }
+
+  return restApiBaseFromAccountUri(matched.base_uri);
+}
+
 export async function getDocuSignAccessToken() {
+  const session = await getDocuSignSession();
+  return session.accessToken;
+}
+
+async function getDocuSignSession() {
   const config = getDocuSignConfig();
   if (!config) {
     throw new Error("DocuSign is not configured.");
   }
 
   if (tokenCache && tokenCache.expiresAt > Date.now() + 60_000) {
-    return tokenCache.accessToken;
+    return tokenCache;
   }
 
   const assertion = createJwtAssertion(config);
@@ -84,9 +135,9 @@ export async function getDocuSignAccessToken() {
     const envLabel =
       process.env.DOCUSIGN_ENV === "production" ? "production" : "demo";
     const base =
-      result.error_description || result.error || "Unable to authenticate with DocuSign.";
-    // DocuSign's "Username and Password are invalid" for JWT almost always means
-    // wrong User ID, RSA key not matching the IK public key, or demo/prod mismatch.
+      result.error_description ||
+      result.error ||
+      "Unable to authenticate with DocuSign.";
     throw new Error(
       `${base} (DocuSign OAuth host: ${oauthHost}, DOCUSIGN_ENV=${envLabel}). ` +
         `Confirm production User ID + RSA private key from account.docusign.com Apps and Keys, ` +
@@ -94,12 +145,15 @@ export async function getDocuSignAccessToken() {
     );
   }
 
+  const apiBaseUrl = await resolveApiBaseUrl(config, result.access_token);
+
   tokenCache = {
     accessToken: result.access_token,
     expiresAt: Date.now() + (result.expires_in ?? 3600) * 1000,
+    apiBaseUrl,
   };
 
-  return result.access_token;
+  return tokenCache;
 }
 
 export async function docusignRequest<T>(
@@ -111,11 +165,11 @@ export async function docusignRequest<T>(
     throw new Error("DocuSign is not configured.");
   }
 
-  const accessToken = await getDocuSignAccessToken();
-  const response = await fetch(`${config.apiBaseUrl}${path}`, {
+  const session = await getDocuSignSession();
+  const response = await fetch(`${session.apiBaseUrl}${path}`, {
     ...init,
     headers: {
-      Authorization: `Bearer ${accessToken}`,
+      Authorization: `Bearer ${session.accessToken}`,
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
     },

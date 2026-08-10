@@ -82,9 +82,13 @@ export function getDocuSignConfig(): DocuSignConfig | null {
   const oauthBaseUrl = isProduction
     ? "https://account.docusign.com"
     : "https://account-d.docusign.com";
-  const apiBaseUrl = isProduction
-    ? "https://www.docusign.net/restapi"
-    : "https://demo.docusign.net/restapi";
+  // Fallback only — live requests resolve the account base_uri via /oauth/userinfo
+  // (production accounts are often on na3/na4/etc., not www.docusign.net).
+  const apiBaseUrl =
+    process.env.DOCUSIGN_API_BASE_URL?.trim().replace(/\/$/, "") ||
+    (isProduction
+      ? "https://www.docusign.net/restapi"
+      : "https://demo.docusign.net/restapi");
 
   return {
     integrationKey,
