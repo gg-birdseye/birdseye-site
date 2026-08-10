@@ -336,12 +336,8 @@ export function OnboardingFlow({
             Thank you — your payment was submitted successfully. We&apos;re activating your
             Birdseye account now.
           </p>
-          <p className="mt-2 text-sm text-stone-400">
-            This usually takes a few seconds. You&apos;ll see a confirmation here as soon as
-            activation finishes, and we&apos;ll email you next steps.
-          </p>
           <p className="mt-6 text-sm font-medium text-birdseye-200">
-            No further action is needed on your part.
+            No further action is needed on your part. You may close this window.
           </p>
         </section>
       ) : null}
