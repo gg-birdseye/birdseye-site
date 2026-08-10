@@ -16,6 +16,29 @@ export type DocuSignConfig = {
   envelopeMode: "generated" | "template";
 };
 
+/** Normalize PEM private keys stored in env vars (Vercel multiline / \\n / quoted). */
+export function normalizeDocuSignPrivateKey(raw: string): string {
+  let key = raw.trim();
+
+  // Strip wrapping quotes from .env-style values pasted into Vercel.
+  if (
+    (key.startsWith('"') && key.endsWith('"')) ||
+    (key.startsWith("'") && key.endsWith("'"))
+  ) {
+    key = key.slice(1, -1);
+  }
+
+  key = key.replace(/\\n/g, "\n").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+  // Vercel single-line pastes often strip newlines entirely:
+  // -----BEGIN …-----MIIE…=-----END …-----
+  // Node's PEM decoder requires a newline after BEGIN and before END.
+  key = key.replace(/(-----BEGIN [A-Z0-9 ]+-----)\s*/i, "$1\n");
+  key = key.replace(/\s*(-----END [A-Z0-9 ]+-----)/i, "\n$1");
+
+  return key.trim();
+}
+
 export function isDocuSignConfigured() {
   return Boolean(getDocuSignConfig());
 }
@@ -47,6 +70,14 @@ export function getDocuSignConfig(): DocuSignConfig | null {
     return null;
   }
 
+  const privateKey = normalizeDocuSignPrivateKey(privateKeyRaw);
+  if (
+    !privateKey.includes("BEGIN") ||
+    !privateKey.includes("PRIVATE KEY")
+  ) {
+    return null;
+  }
+
   const isProduction = process.env.DOCUSIGN_ENV === "production";
   const oauthBaseUrl = isProduction
     ? "https://account.docusign.com"
@@ -63,7 +94,7 @@ export function getDocuSignConfig(): DocuSignConfig | null {
     clientRoleName: process.env.DOCUSIGN_CLIENT_ROLE_NAME?.trim() || "Client",
     oauthBaseUrl,
     apiBaseUrl,
-    privateKey: privateKeyRaw.replace(/\\n/g, "\n"),
+    privateKey,
     webhookHmacKey: process.env.DOCUSIGN_WEBHOOK_HMAC_KEY?.trim(),
     contractDocxPath,
     contractDocxDir,

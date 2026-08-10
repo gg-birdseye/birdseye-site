@@ -34,7 +34,18 @@ function createJwtAssertion(config: NonNullable<ReturnType<typeof getDocuSignCon
   const signer = createSign("RSA-SHA256");
   signer.update(unsigned);
   signer.end();
-  const signature = signer.sign(config.privateKey);
+  let signature: Buffer;
+  try {
+    signature = signer.sign(config.privateKey);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `DocuSign RSA private key could not be read (${detail}). ` +
+        `In Vercel, set DOCUSIGN_RSA_PRIVATE_KEY to the full PEM including ` +
+        `BEGIN/END lines. Prefer one line with \\n between lines, and do not ` +
+        `wrap the value in extra quotes.`,
+    );
+  }
   return `${unsigned}.${base64Url(signature)}`;
 }
 
@@ -69,8 +80,17 @@ export async function getDocuSignAccessToken() {
   };
 
   if (!response.ok || !result.access_token) {
+    const oauthHost = new URL(config.oauthBaseUrl).host;
+    const envLabel =
+      process.env.DOCUSIGN_ENV === "production" ? "production" : "demo";
+    const base =
+      result.error_description || result.error || "Unable to authenticate with DocuSign.";
+    // DocuSign's "Username and Password are invalid" for JWT almost always means
+    // wrong User ID, RSA key not matching the IK public key, or demo/prod mismatch.
     throw new Error(
-      result.error_description || result.error || "Unable to authenticate with DocuSign.",
+      `${base} (DocuSign OAuth host: ${oauthHost}, DOCUSIGN_ENV=${envLabel}). ` +
+        `Confirm production User ID + RSA private key from account.docusign.com Apps and Keys, ` +
+        `and that DOCUSIGN_ENV=production when using live credentials.`,
     );
   }
 
