@@ -150,6 +150,29 @@ export function OnboardingFlow({
     let attempts = 0;
     const maxAttempts = 90;
 
+    async function confirmCheckout() {
+      try {
+        const response = await fetch(
+          `/api/onboarding/${currentClient.token}/checkout/confirm`,
+          { method: "POST" },
+        );
+        const result = await parseJsonResponse<{
+          client?: ClientWithCourses;
+          error?: string;
+        }>(response);
+        if (!cancelled && result.client) {
+          setCurrentClient(result.client);
+          return true;
+        }
+        if (!cancelled && result.error) {
+          setError(result.error);
+        }
+      } catch {
+        // Fall back to polling in case confirm is briefly unavailable.
+      }
+      return false;
+    }
+
     async function pollStatus() {
       try {
         const response = await fetch(
@@ -165,7 +188,10 @@ export function OnboardingFlow({
       }
     }
 
-    void pollStatus();
+    void confirmCheckout().then((done) => {
+      if (cancelled || done) return;
+      void pollStatus();
+    });
     const intervalId = window.setInterval(() => {
       attempts += 1;
       if (attempts >= maxAttempts) {

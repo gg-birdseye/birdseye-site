@@ -224,7 +224,7 @@ export async function activateClient(clientId: string) {
     sanityCourseId = result.sanityCourseId ?? sanityCourseId;
     courseSlug = result.client.courseSlug ?? courseSlug;
   } catch (error) {
-    console.error("Failed to create Sanity course stub(s):", error);
+    console.error("SANITY_COURSE_STUB_FAILED:", error);
   }
 
   const now = new Date();
@@ -248,7 +248,11 @@ export async function activateClient(clientId: string) {
   revalidatePath("/courses");
 
   if (!wasAlreadyActive) {
-    await sendOnboardingActivationEmails(updated);
+    try {
+      await sendOnboardingActivationEmails(updated);
+    } catch (error) {
+      console.error("ACTIVATION_EMAIL_FAILED:", error);
+    }
   }
 
   return updated;

@@ -277,6 +277,8 @@ export function AdminOnboardingDashboard() {
         stripeCustomerId: null,
         stripeSubscriptionId: null,
         stripeCheckoutSessionId: null,
+        stripeSubscriptionScheduleId: null,
+        stripeDefaultPaymentMethodId: null,
         manualPaymentReceivedAt: null,
         manualPaymentAmountCents: null,
         manualPaymentMethod: null,
@@ -287,6 +289,8 @@ export function AdminOnboardingDashboard() {
         invitedAt: new Date(),
         intakeCompletedAt: null,
         paidAt: null,
+        deliveredAt: null,
+        annualBillingStartsAt: null,
         suspendedAt: null,
         gracePeriodEndsAt: null,
         createdAt: new Date(),
@@ -550,7 +554,13 @@ export function AdminOnboardingDashboard() {
 
   async function runClientAction(
     id: string,
-    action: "mark-paid" | "suspend" | "reactivate" | "create-sanity-course",
+    action:
+      | "mark-paid"
+      | "suspend"
+      | "reactivate"
+      | "create-sanity-course"
+      | "mark-delivered"
+      | "complete-checkout",
   ) {
     setError("");
     try {
@@ -1167,6 +1177,17 @@ export function AdminOnboardingDashboard() {
                           ? " · over 200 mi — fee not added"
                           : ""}
                       </p>
+                      {client.deliveredAt ? (
+                        <p className="mt-1 text-sm text-stone-500">
+                          Delivered {new Date(client.deliveredAt).toLocaleDateString()}
+                          {client.annualBillingStartsAt
+                            ? ` · remaining 50% / annual renewals start ${new Date(client.annualBillingStartsAt).toLocaleDateString()}`
+                            : ""}
+                          {client.stripeSubscriptionScheduleId
+                            ? " · Stripe schedule created"
+                            : ""}
+                        </p>
+                      ) : null}
                       {needsSanity ? (
                         <p className="mt-1 text-sm text-amber-200/90">
                           Sanity: {sanityLinked}/{courseCount} courses linked
@@ -1197,6 +1218,36 @@ export function AdminOnboardingDashboard() {
                           className="rounded-full bg-birdseye-500 px-3 py-1.5 text-xs text-white"
                         >
                           Mark payment received
+                        </button>
+                      ) : null}
+                      {client.paymentMethod !== "manual" &&
+                      client.onboardingStatus !== "active" &&
+                      client.stripeCheckoutSessionId ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void runClientAction(client.id, "complete-checkout")
+                          }
+                          className="rounded-full bg-birdseye-500 px-3 py-1.5 text-xs text-white"
+                        >
+                          Complete Stripe activation
+                        </button>
+                      ) : null}
+                      {client.onboardingStatus === "active" &&
+                      client.plan !== "monthly" &&
+                      !client.deliveredAt ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const confirmed = window.confirm(
+                              `Mark "${resolveAccountLabel(client)}" as delivered?\n\nThis schedules the remaining 50% for the 1st of next month, then 100% annual renewals on that same date.`,
+                            );
+                            if (!confirmed) return;
+                            void runClientAction(client.id, "mark-delivered");
+                          }}
+                          className="rounded-full bg-birdseye-500 px-3 py-1.5 text-xs text-white"
+                        >
+                          Mark delivered
                         </button>
                       ) : null}
                       {needsSanity ? (

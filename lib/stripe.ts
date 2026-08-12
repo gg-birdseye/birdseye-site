@@ -169,9 +169,8 @@ export async function createCheckoutSessionForClient(
       throw new Error("No billing summary configured for this client.");
     }
 
-    return stripe.checkout.sessions.create({
+    const annualCheckout: Stripe.Checkout.SessionCreateParams = {
       mode: "payment",
-      customer_email: client.contactEmail ?? undefined,
       line_items: appendTravelLineItems(
         [buildAnnualFirstInstallmentLineItem(billing, installmentCents)],
         client,
@@ -180,7 +179,20 @@ export async function createCheckoutSessionForClient(
       cancel_url: cancelUrl,
       metadata,
       custom_text: customText,
-    });
+      payment_intent_data: {
+        setup_future_usage: "off_session",
+        metadata,
+      },
+    };
+
+    if (client.stripeCustomerId) {
+      annualCheckout.customer = client.stripeCustomerId;
+    } else {
+      annualCheckout.customer_creation = "always";
+      annualCheckout.customer_email = client.contactEmail ?? undefined;
+    }
+
+    return stripe.checkout.sessions.create(annualCheckout);
   }
 
   if (priceId) {

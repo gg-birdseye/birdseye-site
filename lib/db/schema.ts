@@ -83,6 +83,8 @@ export const clients = pgTable("clients", {
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
   stripeCheckoutSessionId: text("stripe_checkout_session_id"),
+  stripeSubscriptionScheduleId: text("stripe_subscription_schedule_id"),
+  stripeDefaultPaymentMethodId: text("stripe_default_payment_method_id"),
 
   manualPaymentReceivedAt: timestamp("manual_payment_received_at", {
     withTimezone: true,
@@ -100,6 +102,10 @@ export const clients = pgTable("clients", {
     .defaultNow(),
   intakeCompletedAt: timestamp("intake_completed_at", { withTimezone: true }),
   paidAt: timestamp("paid_at", { withTimezone: true }),
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+  annualBillingStartsAt: timestamp("annual_billing_starts_at", {
+    withTimezone: true,
+  }),
   suspendedAt: timestamp("suspended_at", { withTimezone: true }),
   gracePeriodEndsAt: timestamp("grace_period_ends_at", { withTimezone: true }),
 

@@ -7,6 +7,7 @@ import {
   updateClientById,
 } from "@/lib/onboarding/clients";
 import { activateClient, setClientBillingStatus } from "@/lib/onboarding/activation";
+import { saveCheckoutCardForFutureUse } from "@/lib/onboarding/annual-billing";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
 import { sendPaymentFailedEmail } from "@/lib/email/onboarding";
 
@@ -45,6 +46,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid signature." }, { status: 400 });
   }
 
+  console.info("STRIPE_WEBHOOK_RECEIVED", event.type, event.id);
+
   if (!isDatabaseConfigured()) {
     return NextResponse.json({ ok: true, skipped: "no_database" });
   }
@@ -56,9 +59,25 @@ export async function POST(request: Request) {
         const clientId = session.metadata?.clientId;
         if (!clientId) break;
 
+        let savedCard: {
+          customerId: string;
+          paymentMethodId: string;
+        } | null = null;
+        if (session.mode === "payment") {
+          try {
+            savedCard = await saveCheckoutCardForFutureUse(session.id);
+          } catch (error) {
+            console.error("Failed to save Checkout card for later annual billing:", error);
+          }
+        }
+
         await updateClientById(clientId, {
           stripeCustomerId:
-            typeof session.customer === "string" ? session.customer : null,
+            savedCard?.customerId ??
+            (typeof session.customer === "string" ? session.customer : null),
+          ...(savedCard?.paymentMethodId
+            ? { stripeDefaultPaymentMethodId: savedCard.paymentMethodId }
+            : {}),
           stripeSubscriptionId:
             typeof session.subscription === "string"
               ? session.subscription
@@ -67,6 +86,41 @@ export async function POST(request: Request) {
         });
 
         await activateClient(clientId);
+        break;
+      }
+
+      case "customer.subscription.created":
+      case "customer.subscription.updated": {
+        const subscription = event.data.object as Stripe.Subscription;
+        let clientId = subscription.metadata?.clientId || null;
+
+        if (!clientId && subscription.schedule) {
+          const scheduleId =
+            typeof subscription.schedule === "string"
+              ? subscription.schedule
+              : subscription.schedule.id;
+          const schedule = await stripe.subscriptionSchedules.retrieve(scheduleId);
+          clientId = schedule.metadata?.clientId || null;
+        }
+
+        const fromSub = clientId
+          ? null
+          : await getClientByStripeSubscriptionId(subscription.id);
+        const fromCustomer =
+          clientId || fromSub
+            ? null
+            : typeof subscription.customer === "string"
+              ? await getClientByStripeCustomerId(subscription.customer)
+              : null;
+        const targetId = clientId || fromSub?.id || fromCustomer?.id;
+        if (!targetId) break;
+
+        await updateClientById(targetId, {
+          stripeSubscriptionId: subscription.id,
+          ...(typeof subscription.schedule === "string"
+            ? { stripeSubscriptionScheduleId: subscription.schedule }
+            : {}),
+        });
         break;
       }
 

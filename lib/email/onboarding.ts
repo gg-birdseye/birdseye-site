@@ -25,12 +25,18 @@ async function sendEmail(options: {
     return;
   }
 
-  await resend.emails.send({
+  const { error } = await resend.emails.send({
     from,
     to: options.to,
     subject: options.subject,
     html: options.html,
   });
+
+  if (error) {
+    throw new Error(
+      `Resend failed (${options.subject}): ${error.message ?? JSON.stringify(error)}`,
+    );
+  }
 }
 
 export async function sendOnboardingActivationEmails(client: Client) {
