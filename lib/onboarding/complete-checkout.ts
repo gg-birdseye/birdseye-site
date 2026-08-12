@@ -2,7 +2,11 @@ import type { Client } from "@/lib/db/schema";
 import { activateClient } from "@/lib/onboarding/activation";
 import { saveCheckoutCardForFutureUse } from "@/lib/onboarding/annual-billing";
 import { updateClientById } from "@/lib/onboarding/clients";
-import { getStripe, isStripeConfigured } from "@/lib/stripe";
+import {
+  getStripe,
+  isStripeConfigured,
+  syncStripeCustomerForClient,
+} from "@/lib/stripe";
 
 export function isStripeCheckoutPaid(
   paymentStatus: string | null | undefined,
@@ -42,12 +46,22 @@ export async function completeCheckoutIfPaid(client: Client) {
     }
   }
 
+  const customerId =
+    savedCard?.customerId ??
+    (typeof session.customer === "string"
+      ? session.customer
+      : client.stripeCustomerId);
+
+  if (customerId) {
+    try {
+      await syncStripeCustomerForClient(customerId, client);
+    } catch (error) {
+      console.error("Failed to sync Stripe customer course label:", error);
+    }
+  }
+
   await updateClientById(client.id, {
-    stripeCustomerId:
-      savedCard?.customerId ??
-      (typeof session.customer === "string"
-        ? session.customer
-        : client.stripeCustomerId),
+    stripeCustomerId: customerId,
     ...(savedCard?.paymentMethodId
       ? { stripeDefaultPaymentMethodId: savedCard.paymentMethodId }
       : {}),

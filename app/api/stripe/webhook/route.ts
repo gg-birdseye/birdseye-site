@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { isDatabaseConfigured } from "@/lib/db";
 import {
+  getClientById,
   getClientByStripeCustomerId,
   getClientByStripeSubscriptionId,
   updateClientById,
 } from "@/lib/onboarding/clients";
 import { activateClient, setClientBillingStatus } from "@/lib/onboarding/activation";
 import { saveCheckoutCardForFutureUse } from "@/lib/onboarding/annual-billing";
-import { getStripe, isStripeConfigured } from "@/lib/stripe";
+import { getStripe, isStripeConfigured, syncStripeCustomerForClient } from "@/lib/stripe";
 import { sendPaymentFailedEmail } from "@/lib/email/onboarding";
 
 const GRACE_PERIOD_DAYS = 7;
@@ -71,10 +72,23 @@ export async function POST(request: Request) {
           }
         }
 
+        const stripeCustomerId =
+          savedCard?.customerId ??
+          (typeof session.customer === "string" ? session.customer : null);
+
+        if (stripeCustomerId) {
+          const client = await getClientById(clientId);
+          if (client) {
+            try {
+              await syncStripeCustomerForClient(stripeCustomerId, client);
+            } catch (error) {
+              console.error("Failed to sync Stripe customer course label:", error);
+            }
+          }
+        }
+
         await updateClientById(clientId, {
-          stripeCustomerId:
-            savedCard?.customerId ??
-            (typeof session.customer === "string" ? session.customer : null),
+          stripeCustomerId,
           ...(savedCard?.paymentMethodId
             ? { stripeDefaultPaymentMethodId: savedCard.paymentMethodId }
             : {}),

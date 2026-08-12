@@ -25,6 +25,30 @@ function stripeClientLabel(client: Client) {
   return resolveAccountLabel(client);
 }
 
+/**
+ * Sets Stripe Customer.name = payer, Customer.description = course/property
+ * so the Customers list Description column matches the club.
+ */
+export async function syncStripeCustomerForClient(
+  customerId: string,
+  client: Client,
+) {
+  const stripe = getStripe();
+  const courseLabel = stripeClientLabel(client);
+  const contactName = client.contactName?.trim() || undefined;
+
+  await stripe.customers.update(customerId, {
+    ...(contactName ? { name: contactName } : {}),
+    description: courseLabel,
+    email: client.contactEmail?.trim() || undefined,
+    metadata: {
+      clientId: client.id,
+      courseName: client.courseName ?? "",
+      organizationName: client.organizationName ?? "",
+    },
+  });
+}
+
 export function isStripeConfigured() {
   return Boolean(process.env.STRIPE_SECRET_KEY?.trim());
 }
