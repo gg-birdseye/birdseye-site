@@ -1,6 +1,10 @@
 import type { Client } from "@/lib/db/schema";
 import { updateClientById } from "@/lib/onboarding/clients";
-import { buildPaymentSummaryFromClient, resolvePlan } from "@/lib/onboarding/client-utils";
+import {
+  buildPaymentSummaryFromClient,
+  resolveAccountLabel,
+  resolvePlan,
+} from "@/lib/onboarding/client-utils";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
 
 const BILLING_TIME_ZONE = "America/Denver";
@@ -155,10 +159,7 @@ export async function scheduleAnnualBillingAfterDelivery(client: Client) {
   );
 
   const stripe = getStripe();
-  const accountLabel =
-    client.organizationName?.trim() ||
-    client.courseName?.trim() ||
-    "Golf Course";
+  const accountLabel = resolveAccountLabel(client);
   const startUnix = Math.floor(billingStartsAt.getTime() / 1000);
 
   const remainingPrice = await stripe.prices.create({

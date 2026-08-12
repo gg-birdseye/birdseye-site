@@ -12,6 +12,7 @@ import {
   resolveTravelMobilizationFeeCents,
 } from "@/lib/pricing/travel";
 import {
+  resolveAccountLabel,
   resolveBillingSummary,
   resolvePlan,
   buildPaymentSummaryFromClient,
@@ -19,6 +20,10 @@ import {
 } from "@/lib/onboarding/client-utils";
 
 let stripeClient: Stripe | null = null;
+
+function stripeClientLabel(client: Client) {
+  return resolveAccountLabel(client);
+}
 
 export function isStripeConfigured() {
   return Boolean(process.env.STRIPE_SECRET_KEY?.trim());
@@ -116,16 +121,18 @@ function appendTravelLineItems(
 }
 
 function buildAnnualFirstInstallmentLineItem(
+  client: Client,
   billing: NonNullable<ReturnType<typeof resolveBillingSummary>>,
   installmentCents: number,
 ): Stripe.Checkout.SessionCreateParams.LineItem {
+  const label = stripeClientLabel(client);
   return {
     price_data: {
       currency: "usd",
       unit_amount: installmentCents,
       product_data: {
-        name: "Annual subscription — first installment (50%)",
-        description: `First of two payments toward ${billing.subscriptionAmountLabel}/yr subscription.`,
+        name: `${label} — annual first installment (50%)`,
+        description: `First of two payments toward ${billing.subscriptionAmountLabel}/yr for ${label}.`,
       },
     },
     quantity: 1,
@@ -172,7 +179,7 @@ export async function createCheckoutSessionForClient(
     const annualCheckout: Stripe.Checkout.SessionCreateParams = {
       mode: "payment",
       line_items: appendTravelLineItems(
-        [buildAnnualFirstInstallmentLineItem(billing, installmentCents)],
+        [buildAnnualFirstInstallmentLineItem(client, billing, installmentCents)],
         client,
       ),
       success_url: successUrl,
@@ -181,6 +188,7 @@ export async function createCheckoutSessionForClient(
       custom_text: customText,
       payment_intent_data: {
         setup_future_usage: "off_session",
+        description: `${stripeClientLabel(client)} — annual first installment (50%)`,
         metadata,
       },
     };
@@ -227,7 +235,7 @@ export async function createCheckoutSessionForClient(
             unit_amount: amount,
             recurring: { interval },
             product_data: {
-              name: `Birdseye — ${client.organizationName ?? client.courseName ?? "Golf Course"}`,
+              name: `Birdseye — ${stripeClientLabel(client)}`,
               description: billing
                 ? `${billing.planLabel} subscription — ${billing.subscriptionAmountLabel} per ${intervalLabel}. ${billing.dueTodayLabel}.`
                 : undefined,
