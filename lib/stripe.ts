@@ -14,6 +14,7 @@ import {
 import {
   resolveAccountLabel,
   resolveBillingSummary,
+  resolveHoleCount,
   resolvePlan,
   buildPaymentSummaryFromClient,
   resolveRecurringChargeCents,
@@ -23,6 +24,12 @@ let stripeClient: Stripe | null = null;
 
 function stripeClientLabel(client: Client) {
   return resolveAccountLabel(client);
+}
+
+/** Matches Stripe catalog naming (e.g. "Birdseye - 18 Hole Course"). */
+function stripeProductLabel(client: Client) {
+  const holes = resolveHoleCount(client);
+  return `Birdseye - ${holes} Hole Course`;
 }
 
 /**
@@ -149,14 +156,14 @@ function buildAnnualFirstInstallmentLineItem(
   billing: NonNullable<ReturnType<typeof resolveBillingSummary>>,
   installmentCents: number,
 ): Stripe.Checkout.SessionCreateParams.LineItem {
-  const label = stripeClientLabel(client);
+  const productLabel = stripeProductLabel(client);
   return {
     price_data: {
       currency: "usd",
       unit_amount: installmentCents,
       product_data: {
-        name: `${label} — annual first installment (50%)`,
-        description: `First of two payments toward ${billing.subscriptionAmountLabel}/yr for ${label}.`,
+        name: `${productLabel} - annual first installment (50%)`,
+        description: `First of two payments toward ${billing.subscriptionAmountLabel}/yr (${productLabel}).`,
       },
     },
     quantity: 1,
@@ -212,7 +219,7 @@ export async function createCheckoutSessionForClient(
       custom_text: customText,
       payment_intent_data: {
         setup_future_usage: "off_session",
-        description: `${stripeClientLabel(client)} — annual first installment (50%)`,
+        description: `${stripeProductLabel(client)} - annual first installment (50%)`,
         metadata,
       },
     };
@@ -259,7 +266,7 @@ export async function createCheckoutSessionForClient(
             unit_amount: amount,
             recurring: { interval },
             product_data: {
-              name: `Birdseye — ${stripeClientLabel(client)}`,
+              name: stripeProductLabel(client),
               description: billing
                 ? `${billing.planLabel} subscription — ${billing.subscriptionAmountLabel} per ${intervalLabel}. ${billing.dueTodayLabel}.`
                 : undefined,
