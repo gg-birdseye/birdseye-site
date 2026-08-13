@@ -1293,7 +1293,7 @@ html.course-hole-selector-grid-open .course-video-menu {
   }
 
   .course-aerial-hole-view-open .course-hole-graphic-panel-content {
-    padding: 0;
+    padding: var(--course-hole-graphic-inset);
   }
 
   .course-aerial-hole-view-open .course-hole-selector-backdrop,
@@ -2810,7 +2810,7 @@ html.course-hole-selector-grid-open .course-video-menu {
   }
 
   .course-aerial-hole-view-open .course-hole-graphic-panel--desktop-topbar .course-hole-graphic-panel-content {
-    padding: 0;
+    padding: var(--course-hole-graphic-inset);
   }
 
   .course-aerial-hole-view-open .course-mobile-sticky {
@@ -2968,13 +2968,15 @@ html.course-hole-selector-grid-open .course-video-menu {
 }
 
 .course-hole-graphic-panel-content {
+  /* Visual buffer around tight Illustrator exports (no artboard margin). */
+  --course-hole-graphic-inset: clamp(0.75rem, 2.5vmin, 1.5rem);
   position: relative;
   display: flex;
   min-height: 0;
   flex: 1;
   align-items: stretch;
   justify-content: center;
-  padding: 0;
+  padding: var(--course-hole-graphic-inset);
   overflow: hidden;
 }
 
@@ -3207,6 +3209,13 @@ html.course-hole-selector-grid-open .course-video-menu {
 @media (max-width: 767px) and (orientation: portrait) {
   .course-has-portrait-panel-nav .course-hole-graphic-panel {
     bottom: calc(var(--course-mobile-bar-h) + var(--course-mobile-portrait-panel-h));
+  }
+
+  /* Extra L/R inset so SVG tops clear the absolute menu + close controls. */
+  .course-hole-graphic-panel-content {
+    --course-hole-graphic-inset-x: clamp(2.5rem, 11vw, 3.5rem);
+    padding-left: var(--course-hole-graphic-inset-x);
+    padding-right: var(--course-hole-graphic-inset-x);
   }
 
   .course-aerial-hole-view-open .course-hole-graphic-panel {
