@@ -2,6 +2,7 @@
 
 import { PanelCloseButton } from "@/components/PanelCloseButton";
 import type { ScorecardChartTeeOption } from "@/components/ScorecardChartOverlay";
+import { teeSelectedLabelColor } from "@/lib/constants/teeColors";
 import { useEffect, useRef } from "react";
 
 export type ScorecardMobileTee = {
@@ -275,6 +276,9 @@ export function ScorecardMobileDataOverlay({
                 option.courseRating,
                 option.slopeRating,
               );
+              const selectedLabelColor = isSelected
+                ? teeSelectedLabelColor(option.color)
+                : undefined;
               return (
                 <button
                   key={option.index}
@@ -282,7 +286,7 @@ export function ScorecardMobileDataOverlay({
                   onClick={() => onTeeSelect?.(option.index)}
                   className={`course-scorecard-data-tee-btn tabular-nums ${
                     isSelected
-                      ? "course-scorecard-data-tee-btn-active text-white"
+                      ? "course-scorecard-data-tee-btn-active"
                       : "text-white/55 hover:text-white/85"
                   }`}
                   style={
@@ -290,6 +294,7 @@ export function ScorecardMobileDataOverlay({
                       ? {
                           backgroundColor: option.color,
                           borderColor: option.color,
+                          color: selectedLabelColor,
                         }
                       : undefined
                   }

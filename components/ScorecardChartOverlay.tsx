@@ -1,6 +1,7 @@
 "use client";
 
 import { PanelCloseButton } from "@/components/PanelCloseButton";
+import { teeSelectedLabelColor } from "@/lib/constants/teeColors";
 import {
   useEffect,
   useMemo,
@@ -88,12 +89,12 @@ function svgMeetYMaxLayout(
 
 const SCORECARD_CHART_WIDTH = 1000;
 const SCORECARD_CHART_HEIGHT = 520;
-const SCORECARD_CHART_MARGIN = { top: 28, right: 20, bottom: 38, left: 56 };
+const SCORECARD_CHART_MARGIN = { top: 28, right: 20, bottom: 18, left: 56 };
 /** Compact margins for landscape — aspect ratio preserved (no SVG stretch). */
-const SCORECARD_CHART_MARGIN_LANDSCAPE = { top: 16, right: 12, bottom: 36, left: 52 };
+const SCORECARD_CHART_MARGIN_LANDSCAPE = { top: 16, right: 12, bottom: 16, left: 52 };
 
-const CHART_LABEL_SIZE = { axis: 16, hole: 26, value: 22 } as const;
-const CHART_LABEL_SIZE_LANDSCAPE = { axis: 18, hole: 28, value: 24 } as const;
+const CHART_LABEL_SIZE = { axis: 16, hole: 30, value: 22 } as const;
+const CHART_LABEL_SIZE_LANDSCAPE = { axis: 18, hole: 32, value: 24 } as const;
 
 /**
  * Zoom level where the chart fills the viewport up to the top-of-axis label
@@ -461,8 +462,11 @@ export function ScorecardChartOverlay({
   /** Pinch/zoom is portrait-only — never on landscape or desktop. */
   const [enableChartZoom, setEnableChartZoom] = useState(false);
   const [isLandscapePhone, setIsLandscapePhone] = useState(false);
-  /** Wider viewBox on landscape so bars fill width without stretching text. */
-  const [landscapeViewWidth, setLandscapeViewWidth] = useState(SCORECARD_CHART_WIDTH);
+  /**
+   * Wider viewBox on landscape / desktop so bars fill the plot width without
+   * stretching glyphs (`preserveAspectRatio="meet"`). Portrait keeps 1000.
+   */
+  const [adaptiveViewWidth, setAdaptiveViewWidth] = useState(SCORECARD_CHART_WIDTH);
   const [maxZoomScale, setMaxZoomScale] = useState(SCORECARD_MAX_ZOOM);
   const zoomFrameRef = useRef<HTMLDivElement>(null);
   const chartBodyRef = useRef<HTMLDivElement>(null);
@@ -489,8 +493,10 @@ export function ScorecardChartOverlay({
   }, []);
 
   useEffect(() => {
-    if (!open || !isLandscapePhone) {
-      setLandscapeViewWidth(SCORECARD_CHART_WIDTH);
+    // Portrait zoom mode keeps a fixed viewBox; landscape + desktop widen to
+    // match the container aspect so bars and the par row share the same L–R scale.
+    if (!open || enableChartZoom) {
+      setAdaptiveViewWidth(SCORECARD_CHART_WIDTH);
       return;
     }
 
@@ -509,7 +515,7 @@ export function ScorecardChartOverlay({
         const height = node.clientHeight;
         if (width <= 0 || height <= 0) return;
         // Match the container aspect so `meet` fills L–R without distorting glyphs.
-        setLandscapeViewWidth(
+        setAdaptiveViewWidth(
           Math.max(
             SCORECARD_CHART_WIDTH,
             Math.round(SCORECARD_CHART_HEIGHT * (width / height)),
@@ -527,7 +533,7 @@ export function ScorecardChartOverlay({
       cancelAnimationFrame(raf);
       observer?.disconnect();
     };
-  }, [open, isLandscapePhone, mode, selectedTee, scorecardGender]);
+  }, [open, enableChartZoom, mode, selectedTee, scorecardGender]);
 
   // Stop Safari page-pinch from eating chart gestures. Chrome trackpad pinch is
   // ctrl+wheel — that must reach react-zoom-pan-pinch, so we don't block wheel here.
@@ -673,7 +679,7 @@ export function ScorecardChartOverlay({
 
   if (!open) return null;
 
-  const chartWidth = isLandscapePhone ? landscapeViewWidth : SCORECARD_CHART_WIDTH;
+  const chartWidth = enableChartZoom ? SCORECARD_CHART_WIDTH : adaptiveViewWidth;
   const chartHeight = SCORECARD_CHART_HEIGHT;
   const margin = isLandscapePhone
     ? SCORECARD_CHART_MARGIN_LANDSCAPE
@@ -684,7 +690,7 @@ export function ScorecardChartOverlay({
   const barGap = innerW / holeCount;
   const barWidth = Math.max(8, barGap * 0.76);
   const chartBaseline = margin.top + innerH;
-  const holeLabelInset = isLandscapePhone ? 18 : 16;
+  const holeLabelInset = isLandscapePhone ? 20 : 18;
 
   const yFor = (value: number) => {
     const range = Math.max(scale.max - scale.min, 1);
@@ -705,7 +711,7 @@ export function ScorecardChartOverlay({
       : `${(margin.right / chartWidth) * 100}%`,
   } as CSSProperties;
 
-  /** Align par cells with bar centers (SVG plot area), including landscape. */
+  /** Align par cells with bar centers (SVG plot area), including landscape/desktop. */
   const parRowInsetStyle = {
     marginLeft: `${(margin.left / chartWidth) * 100}%`,
     marginRight: `${(margin.right / chartWidth) * 100}%`,
@@ -1033,6 +1039,9 @@ export function ScorecardChartOverlay({
                     option.courseRating,
                     option.slopeRating,
                   );
+                  const selectedLabelColor = isSelected
+                    ? teeSelectedLabelColor(option.color)
+                    : undefined;
                   return (
                     <button
                       key={option.index}
@@ -1040,7 +1049,7 @@ export function ScorecardChartOverlay({
                       onClick={() => onTeeSelect?.(option.index)}
                       className={`course-scorecard-chart-tee-btn tabular-nums ${
                         isSelected
-                          ? "course-scorecard-chart-tee-btn-active text-white"
+                          ? "course-scorecard-chart-tee-btn-active"
                           : "text-white/55 hover:text-white/85"
                       }`}
                       style={
@@ -1048,6 +1057,7 @@ export function ScorecardChartOverlay({
                           ? {
                               backgroundColor: option.color,
                               borderColor: option.color,
+                              color: selectedLabelColor,
                             }
                           : undefined
                       }

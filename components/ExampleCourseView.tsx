@@ -19,7 +19,6 @@ import {
 import { ScrollyVideoSection } from "@/components/ScrollyVideoSection";
 import {
   scorecardDisplayTotalPar,
-  scorecardHasGenderChartDifferences,
   scorecardParsForGender,
   scorecardTeeForGender,
   type CourseAerialMapData,
@@ -255,9 +254,7 @@ export function ExampleCourseView({
     null,
   );
   const [aerialViewMode, setAerialViewMode] = useState<"course" | "hole">("hole");
-  const showScorecardGenderToggle = scorecardHasGenderChartDifferences(
-    scorecardData,
-  );
+  const showScorecardGenderToggle = Boolean(scorecardData?.hasWomenRatings);
   const [holeDescOpen, setHoleDescOpen] = useState(false);
   const [scrollHintDismissed, setScrollHintDismissed] = useState(false);
   const [scrollHintKey, setScrollHintKey] = useState(0);

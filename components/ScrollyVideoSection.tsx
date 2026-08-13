@@ -746,7 +746,7 @@ export function ScrollyVideoSection({
                         </p>
                         <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
                           <a
-                            href="/example-course"
+                            href="/birchcreek"
                             className="inline-flex items-center justify-center rounded-full border border-white/20 bg-white/5 px-8 py-3.5 text-base font-semibold text-stone-100 backdrop-blur-sm transition hover:border-white/35 hover:bg-white/10"
                           >
                             Try it out
