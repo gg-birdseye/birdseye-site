@@ -105,7 +105,7 @@ export default defineType({
       type: 'image',
       group: 'details',
       description:
-        'Square logo shown on the video player (bottom-left) on every hole page. White artwork on a transparent background works best.',
+        'Square logo shown on the video player (bottom-left) on every hole page. White artwork on a transparent background works best. When Website URL is set, tapping the logo opens that site.',
       options: {
         accept: 'image/svg+xml,image/png,image/webp',
       },
@@ -117,6 +117,18 @@ export default defineType({
           description: 'Accessibility label — usually the course name.',
         }),
       ],
+    }),
+    defineField({
+      name: 'websiteUrl',
+      title: 'Website URL',
+      type: 'url',
+      group: 'details',
+      description:
+        'Optional. Official course website. When set, the course logo on the player links here (opens in a new tab).',
+      validation: (Rule) =>
+        Rule.uri({ scheme: ['http', 'https'] }).error(
+          'Enter a full URL starting with https://',
+        ),
     }),
     defineField({
       name: 'address',

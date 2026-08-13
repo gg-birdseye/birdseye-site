@@ -149,6 +149,7 @@ export default async function CoursePage({ params }: Props) {
           posterUrl={primary.posterUrl}
           hideLegacyChrome
           videoLogoSrc={courseLogoSrc(course) ?? undefined}
+          videoLogoHref={course.websiteUrl?.trim() || undefined}
           pagePanels={coursePagePanels(course)}
           scorecardData={courseScorecardData(course, course.holeCount ?? 18)}
           aerialMap={courseAerialMap(course)}

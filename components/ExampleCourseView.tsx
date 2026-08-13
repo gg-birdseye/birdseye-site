@@ -126,6 +126,8 @@ export type ExampleCourseViewProps = {
   hideLegacyChrome?: boolean;
   /** Square course logo shown on the video player (bottom-left). */
   videoLogoSrc?: string;
+  /** When set, the course logo links to this URL (new tab). */
+  videoLogoHref?: string;
   /** Which footer/nav panel buttons are shown. Defaults to all on for demo pages. */
   pagePanels?: CoursePagePanels;
   /** Per-hole yardages and handicaps from Sanity (1-indexed arrays). */
@@ -151,6 +153,7 @@ export function ExampleCourseView({
   demoScorecard = false,
   hideLegacyChrome = true,
   videoLogoSrc,
+  videoLogoHref,
   pagePanels: pagePanelsProp,
   scorecardData,
   aerialMap,
@@ -988,17 +991,37 @@ export function ExampleCourseView({
       />
 
       {videoLogoSrc ? (
-        <div className="course-video-logo pointer-events-none">
-          {videoLogoSrc === "/example-course-logo.svg" ? (
-            <ExampleCourseLogo className="course-video-logo-image h-full w-full" />
-          ) : (
-            <img
-              src={videoLogoSrc}
-              alt={courseTitle}
-              className="course-video-logo-image h-full w-full object-contain object-left-bottom"
-            />
-          )}
-        </div>
+        videoLogoHref?.trim() ? (
+          <a
+            href={videoLogoHref.trim()}
+            className="course-video-logo"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`${courseTitle} website`}
+          >
+            {videoLogoSrc === "/example-course-logo.svg" ? (
+              <ExampleCourseLogo className="course-video-logo-image h-full w-full" />
+            ) : (
+              <img
+                src={videoLogoSrc}
+                alt={courseTitle}
+                className="course-video-logo-image h-full w-full object-contain object-left-bottom"
+              />
+            )}
+          </a>
+        ) : (
+          <div className="course-video-logo pointer-events-none">
+            {videoLogoSrc === "/example-course-logo.svg" ? (
+              <ExampleCourseLogo className="course-video-logo-image h-full w-full" />
+            ) : (
+              <img
+                src={videoLogoSrc}
+                alt={courseTitle}
+                className="course-video-logo-image h-full w-full object-contain object-left-bottom"
+              />
+            )}
+          </div>
+        )
       ) : null}
 
       <CourseMenuButton

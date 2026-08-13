@@ -42,6 +42,9 @@ export function buildGolfCourseJsonLd(options: {
     url,
     ...(image ? { image } : {}),
     ...(course.phone?.trim() ? { telephone: course.phone.trim() } : {}),
+    ...(course.websiteUrl?.trim()
+      ? { sameAs: [course.websiteUrl.trim()] }
+      : {}),
     ...(postalAddress ? { address: postalAddress } : {}),
     ...(typeof course.holeCount === "number"
       ? {

@@ -273,6 +273,7 @@ export type CourseDoc = {
   slug: string | null;
   holeCount?: number | null;
   courseLogo?: CourseLogo;
+  websiteUrl?: string | null;
   address?: CourseAddressDoc;
   googleMapsUrl?: string | null;
   appleMapsUrl?: string | null;
@@ -1278,6 +1279,7 @@ const courseBySlugQuery = defineQuery(`
     "slug": slug.current,
     holeCount,
     phone,
+    websiteUrl,
     googleMapsUrl,
     appleMapsUrl,
     address {
