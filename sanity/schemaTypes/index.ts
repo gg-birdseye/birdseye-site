@@ -9,12 +9,10 @@ import scorecardGenderRatings from "./scorecardGenderRatings";
 import scorecardGenderValues from "./scorecardGenderValues";
 import scorecardTeeEntry from "./scorecardTeeEntry";
 import scorecardTeeSet from "./scorecardTeeSet";
-import yardageArcMarker from "./yardageArcMarker";
 
 export const schemaTypes = [
   aerialMapHotspot,
   cameraPathPoint,
-  yardageArcMarker,
   holeFlyover,
   scorecardGenderRatings,
   scorecardGenderValues,

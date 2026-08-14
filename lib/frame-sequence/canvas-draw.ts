@@ -20,17 +20,23 @@ export function computeCoverDrawRect(
   const srcAspect = srcW / srcH;
   const destAspect = destW / destH;
 
+  // Overdraw by 1px on each edge to avoid subpixel hairlines at the stage bounds.
+  const dx = -1;
+  const dy = -1;
+  const dw = destW + 2;
+  const dh = destH + 2;
+
   if (srcAspect > destAspect) {
     const sh = srcH;
     const sw = srcH * destAspect;
     const sx = (srcW - sw) / 2;
-    return { sx, sy: 0, sw, sh, dx: 0, dy: 0, dw: destW, dh: destH };
+    return { sx, sy: 0, sw, sh, dx, dy, dw, dh };
   }
 
   const sw = srcW;
   const sh = srcW / destAspect;
   const sy = (srcH - sh) / 2;
-  return { sx: 0, sy, sw, sh, dx: 0, dy: 0, dw: destW, dh: destH };
+  return { sx: 0, sy, sw, sh, dx, dy, dw, dh };
 }
 
 export function resizeCanvasToDisplaySize(canvas: HTMLCanvasElement): {

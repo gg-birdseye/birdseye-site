@@ -9,14 +9,20 @@ import {
   type FlyoverFrameSequence,
 } from "../flyover-frames";
 import {
-  type YardageArcClipPoint,
-  type YardageArcMarker,
-  type YardageArcPin,
-  type YardageArcsData,
-} from "@/lib/yardage-arcs";
+  resolveLandingZone,
+  type LandingZoneData,
+  type LandingZoneMarker,
+  type LandingZonePoint,
+  type LandingZoneTeePoint,
+} from "@/lib/landing-zone";
 
 export type { FlyoverFrameSequence } from "../flyover-frames";
-export type { YardageArcClipPoint, YardageArcMarker, YardageArcPin, YardageArcsData };
+export type {
+  LandingZoneData,
+  LandingZoneMarker,
+  LandingZonePoint,
+  LandingZoneTeePoint,
+};
 
 export type MuxAssetRef = {
   playbackId?: string;
@@ -56,10 +62,15 @@ export type HoleFlyoverDoc = {
   flyoverFrames?: FlyoverFrameSequence;
   holeGraphic?: HoleGraphicDoc;
   cameraPath?: CameraPathPoint[] | null;
+  landingZone?: {
+    green?: LandingZonePoint | null;
+    tees?: LandingZoneTeePoint[] | null;
+    markers?: LandingZoneMarker[] | null;
+  } | null;
+  /** @deprecated Migrated to landingZone.green / landingZone.markers when present. */
   yardageArcs?: {
-    pin?: YardageArcPin | null;
-    markers?: YardageArcMarker[] | null;
-    arcClip?: YardageArcClipPoint[] | null;
+    pin?: LandingZonePoint | null;
+    markers?: LandingZoneMarker[] | null;
   } | null;
 };
 
@@ -307,7 +318,7 @@ export type HolePlayback = CoursePlaybackUrls & {
   frames?: FlyoverFrameSequence;
   holeGraphic?: HoleGraphic;
   cameraPath?: CameraPathPoint[];
-  yardageArcs?: YardageArcsData;
+  landingZone?: LandingZoneData;
 };
 
 const flyoverFramesProjection = `
@@ -347,10 +358,14 @@ const holeFlyoverProjection = `
     y,
     videoProgress
   },
+  landingZone {
+    green { x, y },
+    tees[] { teeIndex, x, y },
+    markers[] { x, y, yards }
+  },
   yardageArcs {
     pin { x, y },
-    markers[] { x, y, yards },
-    arcClip[] { x, y }
+    markers[] { x, y, yards }
   },
   flyoverVideo {
     ${muxAssetProjection}
@@ -448,54 +463,10 @@ function resolveCameraPath(hole: HoleFlyoverDoc): CameraPathPoint[] | undefined 
   return points.length >= 2 ? points : undefined;
 }
 
-function resolveYardageArcs(hole: HoleFlyoverDoc): YardageArcsData | undefined {
-  const pin = hole.yardageArcs?.pin;
-  if (
-    !pin ||
-    typeof pin.x !== "number" ||
-    typeof pin.y !== "number" ||
-    !Number.isFinite(pin.x) ||
-    !Number.isFinite(pin.y)
-  ) {
-    return undefined;
-  }
-
-  const markers = (hole.yardageArcs?.markers ?? [])
-    .map((marker) => ({
-      x: typeof marker.x === "number" ? marker.x : NaN,
-      y: typeof marker.y === "number" ? marker.y : NaN,
-      yards: typeof marker.yards === "number" ? marker.yards : NaN,
-    }))
-    .filter(
-      (marker) =>
-        Number.isFinite(marker.x) &&
-        Number.isFinite(marker.y) &&
-        Number.isFinite(marker.yards) &&
-        marker.yards > 0,
-    );
-
-  if (markers.length === 0) return undefined;
-
-  const arcClip = (hole.yardageArcs?.arcClip ?? [])
-    .map((point) => ({
-      x: typeof point.x === "number" ? point.x : NaN,
-      y: typeof point.y === "number" ? point.y : NaN,
-    }))
-    .filter(
-      (point) =>
-        Number.isFinite(point.x) &&
-        Number.isFinite(point.y) &&
-        point.x >= 0 &&
-        point.x <= 100 &&
-        point.y >= 0 &&
-        point.y <= 100,
-    );
-
-  return {
-    pin: { x: pin.x, y: pin.y },
-    markers,
-    ...(arcClip.length >= 3 ? { arcClip } : {}),
-  };
+function resolveHoleLandingZone(hole: HoleFlyoverDoc): LandingZoneData | undefined {
+  return (
+    resolveLandingZone(hole.landingZone, hole.yardageArcs) ?? undefined
+  );
 }
 
 /**
@@ -549,14 +520,14 @@ export function courseHolePlaybacks(course: CourseDoc | null): HolePlayback[] {
     if (!urls) continue;
     const holeGraphic = resolveHoleGraphic(hole);
     const cameraPath = resolveCameraPath(hole);
-    const yardageArcs = resolveYardageArcs(hole);
+    const landingZone = resolveHoleLandingZone(hole);
     playbacks.push({
       holeNumber: hole.holeNumber,
       ...urls,
       frames: resolveHoleFrames(urls.playbackId, hole.flyoverFrames),
       ...(holeGraphic ? { holeGraphic } : {}),
       ...(cameraPath ? { cameraPath } : {}),
-      ...(yardageArcs ? { yardageArcs } : {}),
+      ...(landingZone ? { landingZone } : {}),
     });
   }
   return playbacks.sort((a, b) => a.holeNumber - b.holeNumber);
@@ -566,27 +537,7 @@ export type HoleGraphicEntry = {
   holeNumber: number;
   graphic: HoleGraphic;
   cameraPath?: CameraPathPoint[];
-  yardageArcs?: YardageArcsData;
-  /**
-   * Server-precomputed clipped arc paths (viewBox coords).
-   * Prefer this on the client so production does not need a mask fetch.
-   */
-  yardageArcRender?: YardageArcRender;
-};
-
-export type YardageArcRenderPath = {
-  yards: number;
-  pathD: string;
-  labelX: number;
-  labelY: number;
-};
-
-export type YardageArcRender = {
-  width: number;
-  height: number;
-  pinX: number;
-  pinY: number;
-  paths: YardageArcRenderPath[];
+  landingZone?: LandingZoneData;
 };
 
 /** Per-hole layout graphics (includes holes without video). */
@@ -597,12 +548,12 @@ export function courseHoleGraphics(course: CourseDoc | null): HoleGraphicEntry[]
     const graphic = resolveHoleGraphic(hole);
     if (graphic && typeof hole.holeNumber === "number") {
       const cameraPath = resolveCameraPath(hole);
-      const yardageArcs = resolveYardageArcs(hole);
+      const landingZone = resolveHoleLandingZone(hole);
       entries.push({
         holeNumber: hole.holeNumber,
         graphic,
         ...(cameraPath ? { cameraPath } : {}),
-        ...(yardageArcs ? { yardageArcs } : {}),
+        ...(landingZone ? { landingZone } : {}),
       });
     }
   }

@@ -1,6 +1,6 @@
 import { defineField, defineType } from 'sanity'
 import { CameraPathEditor } from '../components/CameraPathEditor'
-import { YardageArcEditor } from '../components/YardageArcEditor'
+import { LandingZoneEditor } from '../components/LandingZoneEditor'
 
 export default defineType({
   name: 'holeFlyover',
@@ -59,15 +59,15 @@ export default defineType({
       },
     }),
     defineField({
-      name: 'yardageArcs',
-      title: 'Yardage Arcs',
+      name: 'landingZone',
+      title: 'Landing zone ruler',
       type: 'object',
       description:
-        'Click the green center (pin), then click known distances (100, 150, 200…) to draw arcs to the pin on Hole View.',
+        'Green center, tee points (one per scorecard tee), and known distances from the green (50, 100, 150…). Players tap/drag a target on Hole View to see tee→target and target→green yards.',
       fields: [
         defineField({
-          name: 'pin',
-          title: 'Pin / green center',
+          name: 'green',
+          title: 'Green center',
           type: 'object',
           fields: [
             defineField({
@@ -85,22 +85,21 @@ export default defineType({
           ],
         }),
         defineField({
-          name: 'markers',
-          title: 'Distance markers',
-          type: 'array',
-          of: [{ type: 'yardageArcMarker' }],
-        }),
-        defineField({
-          name: 'arcClip',
-          title: 'Custom arc clip region',
-          description:
-            'Optional. When 3+ points are set, dashed arcs only appear inside this polygon (replaces auto green detection). Use the editor above to draw it.',
+          name: 'tees',
+          title: 'Tee points',
           type: 'array',
           of: [
             {
               type: 'object',
-              name: 'yardageArcClipPoint',
+              name: 'landingZoneTee',
               fields: [
+                defineField({
+                  name: 'teeIndex',
+                  title: 'Tee index',
+                  type: 'number',
+                  description: '0 = first scorecard tee, 1 = second, …',
+                  validation: (Rule) => Rule.required().integer().min(0),
+                }),
                 defineField({
                   name: 'x',
                   title: 'Horizontal position (%)',
@@ -114,12 +113,65 @@ export default defineType({
                   validation: (Rule) => Rule.min(0).max(100),
                 }),
               ],
+              preview: {
+                select: { teeIndex: 'teeIndex', x: 'x', y: 'y' },
+                prepare: ({ teeIndex, x, y }) => ({
+                  title: `Tee ${typeof teeIndex === 'number' ? teeIndex + 1 : '?'}`,
+                  subtitle:
+                    Number.isFinite(x) && Number.isFinite(y)
+                      ? `${x}%, ${y}%`
+                      : 'Unset',
+                }),
+              },
+            },
+          ],
+        }),
+        defineField({
+          name: 'markers',
+          title: 'Distances from green',
+          description:
+            'Click a point that is a known distance from the green center (e.g. 100 yd) and enter that yardage. Place several along the fairway — especially where the aerial is skewed.',
+          type: 'array',
+          of: [
+            {
+              type: 'object',
+              name: 'landingZoneMarker',
+              fields: [
+                defineField({
+                  name: 'x',
+                  title: 'Horizontal position (%)',
+                  type: 'number',
+                  validation: (Rule) => Rule.min(0).max(100),
+                }),
+                defineField({
+                  name: 'y',
+                  title: 'Vertical position (%)',
+                  type: 'number',
+                  validation: (Rule) => Rule.min(0).max(100),
+                }),
+                defineField({
+                  name: 'yards',
+                  title: 'Yards from green',
+                  type: 'number',
+                  validation: (Rule) => Rule.required().positive(),
+                }),
+              ],
+              preview: {
+                select: { yards: 'yards', x: 'x', y: 'y' },
+                prepare: ({ yards, x, y }) => ({
+                  title: Number.isFinite(yards) ? `${yards} yd from green` : 'Marker',
+                  subtitle:
+                    Number.isFinite(x) && Number.isFinite(y)
+                      ? `${x}%, ${y}%`
+                      : 'Unset',
+                }),
+              },
             },
           ],
         }),
       ],
       components: {
-        input: YardageArcEditor,
+        input: LandingZoneEditor,
       },
     }),
     defineField({

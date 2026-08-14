@@ -30,8 +30,7 @@ import {
   type HoleGraphic,
   type HoleGraphicEntry,
   type CameraPathPoint,
-  type YardageArcsData,
-  type YardageArcRender,
+  type LandingZoneData,
   type HolePlayback,
   type ScorecardGender,
 } from "@/lib/sanity/courses";
@@ -215,29 +214,20 @@ export function ExampleCourseView({
     }
     return map;
   }, [holeGraphicsProp, holeVideos]);
-  const yardageArcsMap = useMemo(() => {
-    const map = new Map<number, YardageArcsData>();
+  const landingZoneMap = useMemo(() => {
+    const map = new Map<number, LandingZoneData>();
     for (const entry of holeGraphicsProp ?? []) {
-      if (entry.yardageArcs) {
-        map.set(entry.holeNumber, entry.yardageArcs);
+      if (entry.landingZone) {
+        map.set(entry.holeNumber, entry.landingZone);
       }
     }
     for (const hole of holeVideos) {
-      if (hole.yardageArcs && !map.has(hole.holeNumber)) {
-        map.set(hole.holeNumber, hole.yardageArcs);
+      if (hole.landingZone && !map.has(hole.holeNumber)) {
+        map.set(hole.holeNumber, hole.landingZone);
       }
     }
     return map;
   }, [holeGraphicsProp, holeVideos]);
-  const yardageArcRenderMap = useMemo(() => {
-    const map = new Map<number, YardageArcRender>();
-    for (const entry of holeGraphicsProp ?? []) {
-      if (entry.yardageArcRender) {
-        map.set(entry.holeNumber, entry.yardageArcRender);
-      }
-    }
-    return map;
-  }, [holeGraphicsProp]);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -1099,8 +1089,8 @@ export function ExampleCourseView({
         par={parForHole(activeHole)}
         holeGraphic={holeGraphicMap.get(activeHole)}
         cameraPath={cameraPathMap.get(activeHole)}
-        yardageArcs={yardageArcsMap.get(activeHole)}
-        yardageArcRender={yardageArcRenderMap.get(activeHole)}
+        landingZone={landingZoneMap.get(activeHole)}
+        selectedTeeIndex={selectedTee}
         flyoverProgress={flyoverProgress}
         onPathSeek={goToFlyoverProgress}
         useDesktopTopBar={isDesktopLayout}

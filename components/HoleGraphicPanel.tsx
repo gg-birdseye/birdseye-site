@@ -4,14 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import type {
   CameraPathPoint,
   HoleGraphic,
-  YardageArcRender,
-  YardageArcsData,
 } from "@/lib/sanity/courses";
+import type { LandingZoneData } from "@/lib/landing-zone";
+import { landingZoneIsReady } from "@/lib/landing-zone";
 import { cameraPathHasTrack } from "@/lib/camera-path";
-import { yardageArcsAreReady } from "@/lib/yardage-arcs";
 import { PanelCloseButton } from "@/components/PanelCloseButton";
 import { CameraPathOverlay } from "@/components/CameraPathOverlay";
-import { YardageArcOverlay } from "@/components/YardageArcOverlay";
+import { LandingZoneOverlay } from "@/components/LandingZoneOverlay";
 import { HoleSelectorOverlay } from "@/components/HoleSelectorOverlay";
 
 type EmbeddedHoleSelectorProps = {
@@ -29,8 +28,8 @@ type HoleGraphicPanelProps = {
   par: number;
   holeGraphic?: HoleGraphic;
   cameraPath?: CameraPathPoint[];
-  yardageArcs?: YardageArcsData;
-  yardageArcRender?: YardageArcRender;
+  landingZone?: LandingZoneData | null;
+  selectedTeeIndex?: number;
   flyoverProgress?: number;
   onPathSeek?: (progress: number) => void;
   useDesktopTopBar?: boolean;
@@ -45,8 +44,8 @@ export function HoleGraphicPanel({
   par,
   holeGraphic,
   cameraPath,
-  yardageArcs,
-  yardageArcRender,
+  landingZone,
+  selectedTeeIndex = 0,
   flyoverProgress = 0,
   onPathSeek,
   useDesktopTopBar = false,
@@ -57,14 +56,14 @@ export function HoleGraphicPanel({
   const contentRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [trackerVisible, setTrackerVisible] = useState(true);
-  const [yardagesVisible, setYardagesVisible] = useState(true);
+  const [rulerVisible, setRulerVisible] = useState(true);
   const [actionsOpen, setActionsOpen] = useState(false);
   const hasCameraTrack = cameraPathHasTrack(cameraPath);
-  const hasYardageArcs = yardageArcsAreReady(yardageArcs);
+  const hasLandingZone = landingZoneIsReady(landingZone);
 
   useEffect(() => {
     setTrackerVisible(true);
-    setYardagesVisible(true);
+    setRulerVisible(true);
   }, [holeNumber]);
 
   useEffect(() => {
@@ -106,14 +105,14 @@ export function HoleGraphicPanel({
     </button>
   ) : null;
 
-  const yardageToggleButton = hasYardageArcs ? (
+  const rulerToggleButton = hasLandingZone ? (
     <button
       type="button"
       className="course-aerial-mode-btn"
-      onClick={() => setYardagesVisible((visible) => !visible)}
-      aria-pressed={!yardagesVisible}
+      onClick={() => setRulerVisible((visible) => !visible)}
+      aria-pressed={!rulerVisible}
     >
-      {yardagesVisible ? "Hide Yardages" : "Show Yardages"}
+      {rulerVisible ? "Hide Ruler" : "Show Ruler"}
     </button>
   ) : null;
 
@@ -127,7 +126,7 @@ export function HoleGraphicPanel({
         Course View
       </button>
       {trackerToggleButton}
-      {yardageToggleButton}
+      {rulerToggleButton}
     </>
   );
 
@@ -172,13 +171,11 @@ export function HoleGraphicPanel({
           window.dispatchEvent(new Event("resize"));
         }}
       />
-      <YardageArcOverlay
+      <LandingZoneOverlay
         contentRef={contentRef}
-        graphicSrc={holeGraphic.src}
-        graphicCdnSrc={holeGraphic.cdnSrc}
-        yardageArcs={yardageArcs}
-        yardageArcRender={yardageArcRender}
-        visible={yardagesVisible}
+        landingZone={landingZone}
+        selectedTeeIndex={selectedTeeIndex}
+        visible={rulerVisible}
       />
       <CameraPathOverlay
         contentRef={contentRef}
