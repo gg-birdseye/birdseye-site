@@ -352,3 +352,14 @@ export function progressAtClosestPathPoint(
 
   return arcLengthToProgress(table, bestArc);
 }
+
+/** Always map % coords to the nearest progress along the path (no distance cutoff). */
+export function closestPathProgress(
+  points: CameraPathPoint[] | null | undefined,
+  x: number,
+  y: number,
+): number | null {
+  return progressAtClosestPathPoint(points, x, y, {
+    maxDistance: Number.POSITIVE_INFINITY,
+  });
+}

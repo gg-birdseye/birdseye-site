@@ -109,6 +109,43 @@ function formatTotalYardsFromHoles(
   return hasValue ? String(sum) : "—";
 }
 
+function parseTotalYardsValue(value: string | undefined): number {
+  if (!value) return Number.NaN;
+  const trimmed = value.replace(/,/g, "").trim();
+  if (!trimmed || trimmed === "—") return Number.NaN;
+  return Number.parseFloat(trimmed);
+}
+
+/** Furthest-back tee = longest total yardage; ties keep the lowest index. */
+function furthestBackTeeIndex(
+  tees: ReadonlyArray<{
+    totalYards?: string;
+    yardages?: ReadonlyArray<string | number>;
+  }>,
+  holeCount: number,
+): number {
+  if (tees.length === 0) return 0;
+
+  let bestIndex = 0;
+  let bestYards = -1;
+
+  tees.forEach((tee, index) => {
+    const fromTotal = parseTotalYardsValue(tee.totalYards);
+    const yards = Number.isFinite(fromTotal)
+      ? fromTotal
+      : parseTotalYardsValue(
+          formatTotalYardsFromHoles(tee.yardages ?? [], holeCount),
+        );
+    if (!Number.isFinite(yards)) return;
+    if (yards > bestYards) {
+      bestYards = yards;
+      bestIndex = index;
+    }
+  });
+
+  return bestIndex;
+}
+
 export type ExampleCourseViewProps = {
   courseTitle?: string;
   videoSrc?: string;
@@ -238,7 +275,7 @@ export function ExampleCourseView({
 
   const [selectedHole, setSelectedHole] = useState(initialHole === 0 ? 1 : initialHole);
   const [scrubHole, setScrubHole] = useState(initialHole === 0 ? 0 : initialHole);
-  const [selectedTee, setSelectedTee] = useState(2);
+  const [selectedTee, setSelectedTee] = useState(0);
   const [scorecardGender, setScorecardGender] = useState<ScorecardGender>("men");
   const [panelOpen, setPanelOpen] = useState<"scorecard" | "map" | "courses" | null>(
     null,
@@ -264,6 +301,7 @@ export function ExampleCourseView({
   const progressScrubbingRef = useRef(false);
   const activeHoleRef = useRef(1);
   const syncedFromUrl = useRef(false);
+  const didInitBackTee = useRef(false);
 
   const setBarProgress = useCallback((p: number) => {
     if (progressFillRef.current) {
@@ -571,6 +609,21 @@ export function ExampleCourseView({
     const maxTee = Math.max(0, (scorecardData?.teeCount ?? 1) - 1);
     if (selectedTee > maxTee) setSelectedTee(maxTee);
   }, [demoScorecard, scorecardData?.teeCount, selectedTee]);
+
+  useEffect(() => {
+    if (didInitBackTee.current) return;
+
+    if (demoScorecard) {
+      const demoTees = TEE_YARDAGES.map((yardages) => ({ yardages }));
+      setSelectedTee(furthestBackTeeIndex(demoTees, holeCount));
+      didInitBackTee.current = true;
+      return;
+    }
+
+    if (!scorecardData?.tees?.length) return;
+    setSelectedTee(furthestBackTeeIndex(scorecardData.tees, holeCount));
+    didInitBackTee.current = true;
+  }, [demoScorecard, holeCount, scorecardData]);
 
   const chartTee = useMemo((): ScorecardChartTee => {
     if (demoScorecard) {

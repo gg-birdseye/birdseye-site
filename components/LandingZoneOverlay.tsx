@@ -5,6 +5,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type RefObject,
 } from "react";
@@ -13,6 +14,12 @@ import {
   pointerToMediaPercent,
   type ContainedMediaRect,
 } from "@/lib/aerial-map-geometry";
+import {
+  cameraPathHasTrack,
+  closestPathProgress,
+  sampleCameraPathAtProgress,
+  type CameraPathPoint,
+} from "@/lib/camera-path";
 import {
   landingZoneIsReady,
   midpointPercent,
@@ -27,6 +34,9 @@ type LandingZoneOverlayProps = {
   contentRef: RefObject<HTMLDivElement | null>;
   landingZone?: LandingZoneData | null;
   selectedTeeIndex?: number;
+  cameraPath?: CameraPathPoint[] | null;
+  progress?: number;
+  onPathSeek?: (progress: number) => void;
   visible?: boolean;
 };
 
@@ -57,16 +67,19 @@ export function LandingZoneOverlay({
   contentRef,
   landingZone,
   selectedTeeIndex = 0,
+  cameraPath,
+  progress = 0,
+  onPathSeek,
   visible = true,
 }: LandingZoneOverlayProps) {
   const ready = landingZoneIsReady(landingZone);
+  const hasPath = cameraPathHasTrack(cameraPath);
   const [mediaRect, setMediaRect] = useState<ContainedMediaRect | null>(null);
   const [mediaSize, setMediaSize] = useState<{
     width: number;
     height: number;
   } | null>(null);
-  const [target, setTarget] = useState<LandingZonePoint | null>(null);
-  const [dragging, setDragging] = useState(false);
+  const [hoverTarget, setHoverTarget] = useState<LandingZonePoint | null>(null);
 
   const tee = useMemo(() => {
     if (!ready || !landingZone) return null;
@@ -75,13 +88,20 @@ export function LandingZoneOverlay({
 
   const green = ready && landingZone ? landingZone.green : null;
 
-  useEffect(() => {
-    if (!ready || !tee || !green) {
-      setTarget(null);
-      return;
+  const syncedTarget = useMemo(() => {
+    if (!tee || !green) return null;
+    if (hasPath) {
+      const sample = sampleCameraPathAtProgress(cameraPath, progress);
+      if (sample) return { x: sample.x, y: sample.y };
     }
-    setTarget(midpointPercent(tee, green));
-  }, [green, ready, selectedTeeIndex, tee]);
+    return midpointPercent(tee, green);
+  }, [cameraPath, green, hasPath, progress, tee]);
+
+  const target = hoverTarget ?? syncedTarget;
+
+  useEffect(() => {
+    setHoverTarget(null);
+  }, [cameraPath, landingZone, selectedTeeIndex]);
 
   const updateMediaRect = useCallback(() => {
     const container = contentRef.current;
@@ -128,44 +148,52 @@ export function LandingZoneOverlay({
     };
   }, [contentRef, ready, updateMediaRect, visible]);
 
-  const setTargetFromPointer = useCallback(
-    (event: ReactPointerEvent<HTMLElement>) => {
+  const coordsFromPointer = useCallback(
+    (clientX: number, clientY: number): LandingZonePoint | null => {
       const container = contentRef.current;
-      if (!container || !mediaRect) return;
+      if (!container || !mediaRect) return null;
       const rect = container.getBoundingClientRect();
-      const coords = pointerToMediaPercent(
-        event.clientX,
-        event.clientY,
-        rect,
-        mediaRect,
-      );
-      if (!coords) return;
-      setTarget(coords);
+      return pointerToMediaPercent(clientX, clientY, rect, mediaRect);
     },
     [contentRef, mediaRect],
   );
 
-  const handlePointerDown = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      event.preventDefault();
-      event.currentTarget.setPointerCapture(event.pointerId);
-      setDragging(true);
-      setTargetFromPointer(event);
-    },
-    [setTargetFromPointer],
-  );
-
   const handlePointerMove = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (!dragging) return;
-      setTargetFromPointer(event);
+      const coords = coordsFromPointer(event.clientX, event.clientY);
+      if (!coords) {
+        setHoverTarget(null);
+        return;
+      }
+      setHoverTarget(coords);
     },
-    [dragging, setTargetFromPointer],
+    [coordsFromPointer],
   );
 
-  const handlePointerUp = useCallback(() => {
-    setDragging(false);
+  const handlePointerLeave = useCallback(() => {
+    setHoverTarget(null);
   }, []);
+
+  const handleClick = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      const coords = coordsFromPointer(event.clientX, event.clientY);
+      if (!coords) return;
+
+      if (hasPath && onPathSeek) {
+        const nextProgress = closestPathProgress(
+          cameraPath,
+          coords.x,
+          coords.y,
+        );
+        if (nextProgress != null) onPathSeek(nextProgress);
+        setHoverTarget(null);
+        return;
+      }
+
+      setHoverTarget(coords);
+    },
+    [cameraPath, coordsFromPointer, hasPath, onPathSeek],
+  );
 
   if (!ready || !visible || !landingZone || !tee || !green || !target) {
     return null;
@@ -212,10 +240,9 @@ export function LandingZoneOverlay({
   return (
     <div
       className="course-hole-graphic-landing-overlay"
-      onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerUp}
+      onPointerLeave={handlePointerLeave}
+      onClick={handleClick}
       role="presentation"
       aria-label="Landing zone distance ruler"
     >

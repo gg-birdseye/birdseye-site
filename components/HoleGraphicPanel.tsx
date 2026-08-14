@@ -60,6 +60,7 @@ export function HoleGraphicPanel({
   const [actionsOpen, setActionsOpen] = useState(false);
   const hasCameraTrack = cameraPathHasTrack(cameraPath);
   const hasLandingZone = landingZoneIsReady(landingZone);
+  const unifiedTool = hasLandingZone && hasCameraTrack;
 
   useEffect(() => {
     setTrackerVisible(true);
@@ -94,16 +95,17 @@ export function HoleGraphicPanel({
 
   const useDesktopTopBarLayout = useDesktopTopBar || Boolean(embeddedHoleSelector);
 
-  const trackerToggleButton = hasCameraTrack ? (
-    <button
-      type="button"
-      className="course-aerial-mode-btn"
-      onClick={() => setTrackerVisible((visible) => !visible)}
-      aria-pressed={!trackerVisible}
-    >
-      {trackerVisible ? "Hide Tracker" : "Show Tracker"}
-    </button>
-  ) : null;
+  const trackerToggleButton =
+    hasCameraTrack && !unifiedTool ? (
+      <button
+        type="button"
+        className="course-aerial-mode-btn"
+        onClick={() => setTrackerVisible((visible) => !visible)}
+        aria-pressed={!trackerVisible}
+      >
+        {trackerVisible ? "Hide Tracker" : "Show Tracker"}
+      </button>
+    ) : null;
 
   const rulerToggleButton = hasLandingZone ? (
     <button
@@ -175,15 +177,20 @@ export function HoleGraphicPanel({
         contentRef={contentRef}
         landingZone={landingZone}
         selectedTeeIndex={selectedTeeIndex}
-        visible={rulerVisible}
-      />
-      <CameraPathOverlay
-        contentRef={contentRef}
         cameraPath={cameraPath}
         progress={flyoverProgress}
         onPathSeek={onPathSeek}
-        visible={trackerVisible}
+        visible={rulerVisible}
       />
+      {!unifiedTool ? (
+        <CameraPathOverlay
+          contentRef={contentRef}
+          cameraPath={cameraPath}
+          progress={flyoverProgress}
+          onPathSeek={onPathSeek}
+          visible={trackerVisible}
+        />
+      ) : null}
     </div>
   ) : (
     <p className="course-hole-graphic-panel-empty">
