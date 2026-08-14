@@ -55,9 +55,11 @@ export function HoleGraphicPanel({
 }: HoleGraphicPanelProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const disclaimerRef = useRef<HTMLDivElement>(null);
   const [trackerVisible, setTrackerVisible] = useState(true);
   const [rulerVisible, setRulerVisible] = useState(true);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [disclaimerOpen, setDisclaimerOpen] = useState(false);
   const hasCameraTrack = cameraPathHasTrack(cameraPath);
   const hasLandingZone = landingZoneIsReady(landingZone);
   const unifiedTool = hasLandingZone && hasCameraTrack;
@@ -65,10 +67,14 @@ export function HoleGraphicPanel({
   useEffect(() => {
     setTrackerVisible(true);
     setRulerVisible(true);
+    setDisclaimerOpen(false);
   }, [holeNumber]);
 
   useEffect(() => {
-    if (!open) setActionsOpen(false);
+    if (!open) {
+      setActionsOpen(false);
+      setDisclaimerOpen(false);
+    }
   }, [open]);
 
   useEffect(() => {
@@ -90,6 +96,26 @@ export function HoleGraphicPanel({
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [actionsOpen]);
+
+  useEffect(() => {
+    if (!disclaimerOpen) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      const root = disclaimerRef.current;
+      if (!root || !(event.target instanceof Node)) return;
+      if (!root.contains(event.target)) setDisclaimerOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDisclaimerOpen(false);
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [disclaimerOpen]);
 
   if (!open) return null;
 
@@ -114,7 +140,7 @@ export function HoleGraphicPanel({
       onClick={() => setRulerVisible((visible) => !visible)}
       aria-pressed={!rulerVisible}
     >
-      {rulerVisible ? "Hide Ruler" : "Show Ruler"}
+      {rulerVisible ? "Hide Tracker" : "Show Tracker"}
     </button>
   ) : null;
 
@@ -191,6 +217,48 @@ export function HoleGraphicPanel({
           visible={trackerVisible}
         />
       ) : null}
+      <div ref={disclaimerRef} className="course-hole-graphic-disclaimer">
+        <button
+          type="button"
+          className="course-hole-graphic-disclaimer-btn"
+          aria-expanded={disclaimerOpen}
+          aria-controls="course-hole-graphic-disclaimer-popup"
+          aria-label={
+            disclaimerOpen
+              ? "Hide distance accuracy disclaimer"
+              : "Show distance accuracy disclaimer"
+          }
+          title="Distance accuracy info"
+          onClick={(event) => {
+            event.stopPropagation();
+            setDisclaimerOpen((open) => !open);
+          }}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className="course-hole-graphic-disclaimer-icon"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            aria-hidden
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path strokeLinecap="round" d="M12 11v5" />
+            <circle cx="12" cy="8" r="0.75" fill="currentColor" stroke="none" />
+          </svg>
+        </button>
+        {disclaimerOpen ? (
+          <div
+            id="course-hole-graphic-disclaimer-popup"
+            className="course-hole-graphic-disclaimer-popup"
+            role="note"
+          >
+            The distance information depicted on this page may not be entirely
+            accurate. This web tool uses calculations to estimate distances and
+            should not be treated as actual GPS data.
+          </div>
+        ) : null}
+      </div>
     </div>
   ) : (
     <p className="course-hole-graphic-panel-empty">

@@ -2860,6 +2860,23 @@ html.course-hole-selector-grid-open .course-video-menu {
     margin-left: 25%;
     width: 75%;
   }
+
+  /* Immersive mode hides the hole graphic column, so release the 25% inset that
+     keeps on-video chrome clear of it. */
+  html.course-video-is-fullscreen.course-aerial-hole-view-open .course-mobile-sticky,
+  html.course-video-is-fullscreen.course-aerial-hole-view-open
+    .course-mobile-landscape-hide {
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  html.course-video-is-fullscreen.course-aerial-hole-view-open
+    .course-hole-selector:not(.course-hole-selector-embedded) {
+    left: calc(
+      env(safe-area-inset-left, 0px) + var(--course-hole-nav-inset-desktop)
+    ) !important;
+  }
 }
 
 .course-aerial-mode-btn {
@@ -3008,6 +3025,73 @@ html.course-hole-selector-grid-open .course-video-menu {
   width: 100%;
   height: 100%;
   min-height: 0;
+}
+
+.course-hole-graphic-disclaimer {
+  position: absolute;
+  left: 0.5rem;
+  bottom: 0.5rem;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+  pointer-events: auto;
+}
+
+@media (min-width: 768px) and (min-height: 601px) {
+  /* Same band as .course-video-logo / fullscreen above the footer. */
+  .course-aerial-hole-view-open .course-hole-graphic-disclaimer {
+    position: fixed;
+    left: 0.5rem;
+    bottom: calc(var(--course-desktop-footer-h) + 0.75rem);
+    z-index: 42;
+  }
+}
+
+.course-hole-graphic-disclaimer-btn {
+  display: flex;
+  width: 1.75rem;
+  height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+}
+
+.course-hole-graphic-disclaimer-btn:hover {
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+}
+
+.course-hole-graphic-disclaimer-btn:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.7);
+  outline-offset: 2px;
+}
+
+.course-hole-graphic-disclaimer-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.course-hole-graphic-disclaimer-popup {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 0.4rem);
+  width: min(16.5rem, calc(100vw - 3rem));
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 0.5rem;
+  background: rgba(12, 12, 12, 0.92);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
 /** Collapsible view options — drop arrow in the header row, aligned with the X */

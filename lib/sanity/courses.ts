@@ -11,6 +11,7 @@ import {
 import {
   resolveLandingZone,
   type LandingZoneData,
+  type LandingZoneGreenEdge,
   type LandingZoneMarker,
   type LandingZonePoint,
   type LandingZoneTeePoint,
@@ -19,6 +20,7 @@ import {
 export type { FlyoverFrameSequence } from "../flyover-frames";
 export type {
   LandingZoneData,
+  LandingZoneGreenEdge,
   LandingZoneMarker,
   LandingZonePoint,
   LandingZoneTeePoint,
@@ -66,6 +68,7 @@ export type HoleFlyoverDoc = {
     green?: LandingZonePoint | null;
     tees?: LandingZoneTeePoint[] | null;
     markers?: LandingZoneMarker[] | null;
+    greenEdges?: LandingZoneGreenEdge[] | null;
   } | null;
   /** @deprecated Migrated to landingZone.green / landingZone.markers when present. */
   yardageArcs?: {
@@ -361,7 +364,8 @@ const holeFlyoverProjection = `
   landingZone {
     green { x, y },
     tees[] { teeIndex, x, y },
-    markers[] { x, y, yards }
+    markers[] { x, y, yards, yardsFromTee },
+    greenEdges[] { side, x, y, yards }
   },
   yardageArcs {
     pin { x, y },

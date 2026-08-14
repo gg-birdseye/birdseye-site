@@ -16,16 +16,19 @@ import {
 } from "@/lib/aerial-map-geometry";
 import {
   cameraPathHasTrack,
-  closestPathProgress,
   sampleCameraPathAtProgress,
   type CameraPathPoint,
 } from "@/lib/camera-path";
 import {
+  greenCalibrationMarkers,
   landingZoneIsReady,
   midpointPercent,
   pointToMediaPx,
+  progressAtMatchingGreenDistance,
+  resolveFurthestBackTee,
   resolveLandingZoneTee,
-  yardsForSegment,
+  yardsFromGreen,
+  yardsFromSelectedTee,
   type LandingZoneData,
   type LandingZonePoint,
 } from "@/lib/landing-zone";
@@ -179,11 +182,16 @@ export function LandingZoneOverlay({
       const coords = coordsFromPointer(event.clientX, event.clientY);
       if (!coords) return;
 
-      if (hasPath && onPathSeek) {
-        const nextProgress = closestPathProgress(
+      if (hasPath && onPathSeek && landingZone && mediaRect && mediaSize) {
+        const calibrationMarkers = greenCalibrationMarkers(landingZone);
+        const greenPoint = landingZone.green;
+        const nextProgress = progressAtMatchingGreenDistance(
           cameraPath,
-          coords.x,
-          coords.y,
+          coords,
+          greenPoint,
+          calibrationMarkers,
+          mediaSize.width,
+          mediaSize.height,
         );
         if (nextProgress != null) onPathSeek(nextProgress);
         setHoverTarget(null);
@@ -192,7 +200,15 @@ export function LandingZoneOverlay({
 
       setHoverTarget(coords);
     },
-    [cameraPath, coordsFromPointer, hasPath, onPathSeek],
+    [
+      cameraPath,
+      coordsFromPointer,
+      hasPath,
+      landingZone,
+      mediaRect,
+      mediaSize,
+      onPathSeek,
+    ],
   );
 
   if (!ready || !visible || !landingZone || !tee || !green || !target) {
@@ -204,19 +220,21 @@ export function LandingZoneOverlay({
   const greenPx = pointToMediaPx(green, mediaRect.width, mediaRect.height);
   const targetPx = pointToMediaPx(target, mediaRect.width, mediaRect.height);
 
-  const teeToTarget = yardsForSegment(
+  const calibrationMarkers = greenCalibrationMarkers(landingZone);
+
+  const teeToTarget = yardsFromSelectedTee(
     tee,
     target,
     green,
-    landingZone.markers,
+    resolveFurthestBackTee(landingZone),
+    calibrationMarkers,
     mediaSize.width,
     mediaSize.height,
   );
-  const targetToGreen = yardsForSegment(
+  const targetToGreen = yardsFromGreen(
     target,
     green,
-    green,
-    landingZone.markers,
+    calibrationMarkers,
     mediaSize.width,
     mediaSize.height,
   );

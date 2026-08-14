@@ -17,7 +17,11 @@ import {
   type ContainedMediaRect,
 } from '../../lib/aerial-map-geometry'
 import {
+  GREEN_EDGE_LABELS,
+  GREEN_EDGE_SIDES,
   suggestNextYardage,
+  type GreenEdgeSide,
+  type LandingZoneGreenEdge,
   type LandingZoneMarker,
   type LandingZonePoint,
   type LandingZoneTeePoint,
@@ -33,10 +37,16 @@ type MarkerItem = LandingZoneMarker & {
   _key: string
 }
 
+type GreenEdgeItem = LandingZoneGreenEdge & {
+  _type: 'landingZoneGreenEdge'
+  _key: string
+}
+
 type LandingZoneValue = {
   green?: LandingZonePoint | null
   tees?: TeeItem[] | null
   markers?: MarkerItem[] | null
+  greenEdges?: GreenEdgeItem[] | null
 } | null
 
 type HoleGraphicFileValue = {
@@ -49,17 +59,25 @@ type ScorecardDoc = {
   teeSets?: Array<{ name?: string | null; color?: string | null } | null> | null
 } | null
 
-type EditorTool = 'green' | 'tee' | 'markers'
+type EditorTool = 'green' | 'tee' | 'markers' | 'greenEdges'
 
 type DragTarget =
   | { kind: 'green' }
   | { kind: 'tee'; index: number }
   | { kind: 'marker'; index: number }
+  | { kind: 'greenEdge'; index: number }
   | null
 
 const ZOOM_MIN = 1
 const ZOOM_MAX = 3
 const ZOOM_STEP = 0.25
+
+const DEFAULT_GREEN_EDGE_YARDS: Record<GreenEdgeSide, number> = {
+  front: 12,
+  back: 16,
+  left: 15,
+  right: 15,
+}
 
 function makeTeeKey(index: number) {
   return `landing-zone-tee-${index}`
@@ -67,6 +85,10 @@ function makeTeeKey(index: number) {
 
 function makeMarkerKey(index: number) {
   return `landing-zone-marker-${index + 1}`
+}
+
+function makeGreenEdgeKey(side: GreenEdgeSide) {
+  return `landing-zone-green-edge-${side}`
 }
 
 function readMediaDimensions(
@@ -84,6 +106,27 @@ function promptForYards(defaultYards: number): number | null {
   const value = Number.parseFloat(raw.trim())
   if (!Number.isFinite(value) || value <= 0) return null
   return Math.round(value)
+}
+
+function promptForTeeYards(defaultYards: number | null): number | null {
+  const raw = window.prompt(
+    'Yards from furthest back tee (to this point)',
+    defaultYards != null ? String(defaultYards) : '',
+  )
+  if (raw == null) return null
+  const value = Number.parseFloat(raw.trim())
+  if (!Number.isFinite(value) || value < 0) return null
+  return Math.round(value)
+}
+
+function promptForMarkerYardages(
+  defaults: { fromGreen: number; fromTee: number | null },
+): { yards: number; yardsFromTee: number } | null {
+  const yards = promptForYards(defaults.fromGreen)
+  if (yards == null) return null
+  const yardsFromTee = promptForTeeYards(defaults.fromTee)
+  if (yardsFromTee == null) return null
+  return { yards, yardsFromTee }
 }
 
 export function LandingZoneEditor(props: ObjectInputProps) {
@@ -104,12 +147,17 @@ export function LandingZoneEditor(props: ObjectInputProps) {
   const [zoom, setZoom] = useState(1)
   const [tool, setTool] = useState<EditorTool>('green')
   const [selectedTeeIndex, setSelectedTeeIndex] = useState(0)
+  const [selectedGreenEdgeSide, setSelectedGreenEdgeSide] =
+    useState<GreenEdgeSide>('front')
   const [pendingYards, setPendingYards] = useState(100)
+  const [pendingYardsFromTee, setPendingYardsFromTee] = useState<number | null>(null)
+  const [pendingGreenEdgeYards, setPendingGreenEdgeYards] = useState(12)
 
   const value = (props.value ?? null) as LandingZoneValue
   const green = value?.green ?? null
   const tees = (value?.tees ?? []) as TeeItem[]
   const markers = (value?.markers ?? []) as MarkerItem[]
+  const greenEdges = (value?.greenEdges ?? []) as GreenEdgeItem[]
 
   const teeOptions = useMemo(() => {
     const count = Math.max(
@@ -232,7 +280,8 @@ export function LandingZoneEditor(props: ObjectInputProps) {
     (next: LandingZoneValue) => {
       const nextTees = next?.tees?.length ? next.tees : undefined
       const nextMarkers = next?.markers?.length ? next.markers : undefined
-      if (!next?.green && !nextTees && !nextMarkers) {
+      const nextEdges = next?.greenEdges?.length ? next.greenEdges : undefined
+      if (!next?.green && !nextTees && !nextMarkers && !nextEdges) {
         props.onChange(unset())
         return
       }
@@ -241,6 +290,7 @@ export function LandingZoneEditor(props: ObjectInputProps) {
           ...(next?.green ? { green: next.green } : {}),
           ...(nextTees ? { tees: nextTees } : {}),
           ...(nextMarkers ? { markers: nextMarkers } : {}),
+          ...(nextEdges ? { greenEdges: nextEdges } : {}),
         }),
       )
     },
@@ -252,14 +302,16 @@ export function LandingZoneEditor(props: ObjectInputProps) {
       green?: LandingZonePoint | null
       tees?: TeeItem[] | null
       markers?: MarkerItem[] | null
+      greenEdges?: GreenEdgeItem[] | null
     }) => {
       commit({
         green: patch.green === undefined ? green : patch.green,
         tees: patch.tees === undefined ? tees : patch.tees,
         markers: patch.markers === undefined ? markers : patch.markers,
+        greenEdges: patch.greenEdges === undefined ? greenEdges : patch.greenEdges,
       })
     },
-    [commit, green, markers, tees],
+    [commit, green, greenEdges, markers, tees],
   )
 
   const upsertTee = useCallback(
@@ -290,7 +342,7 @@ export function LandingZoneEditor(props: ObjectInputProps) {
   )
 
   const addMarker = useCallback(
-    (point: LandingZonePoint, yards: number) => {
+    (point: LandingZonePoint, yards: number, yardsFromTee: number) => {
       commitParts({
         markers: [
           ...markers,
@@ -300,6 +352,7 @@ export function LandingZoneEditor(props: ObjectInputProps) {
             x: point.x,
             y: point.y,
             yards,
+            yardsFromTee,
           },
         ],
       })
@@ -327,6 +380,54 @@ export function LandingZoneEditor(props: ObjectInputProps) {
     [commitParts, markers],
   )
 
+  const upsertGreenEdge = useCallback(
+    (side: GreenEdgeSide, point: LandingZonePoint, yards: number) => {
+      const existing = greenEdges.findIndex((edge) => edge.side === side)
+      if (existing >= 0) {
+        commitParts({
+          greenEdges: greenEdges.map((edge, i) =>
+            i === existing ? { ...edge, x: point.x, y: point.y, yards } : edge,
+          ),
+        })
+        return
+      }
+      commitParts({
+        greenEdges: [
+          ...greenEdges,
+          {
+            _type: 'landingZoneGreenEdge',
+            _key: makeGreenEdgeKey(side),
+            side,
+            x: point.x,
+            y: point.y,
+            yards,
+          },
+        ],
+      })
+    },
+    [commitParts, greenEdges],
+  )
+
+  const updateGreenEdge = useCallback(
+    (index: number, patch: Partial<LandingZoneGreenEdge>) => {
+      commitParts({
+        greenEdges: greenEdges.map((edge, i) =>
+          i === index ? { ...edge, ...patch } : edge,
+        ),
+      })
+    },
+    [commitParts, greenEdges],
+  )
+
+  const removeGreenEdge = useCallback(
+    (index: number) => {
+      commitParts({
+        greenEdges: greenEdges.filter((_, i) => i !== index),
+      })
+    },
+    [commitParts, greenEdges],
+  )
+
   const handleCanvasPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
       if (!mediaRect || !containerRef.current || dragging) return
@@ -348,11 +449,26 @@ export function LandingZoneEditor(props: ObjectInputProps) {
         window.alert('Set the green center first, then place distance markers.')
         return
       }
+      if (tool === 'greenEdges') {
+        const yards = promptForYards(pendingGreenEdgeYards)
+        if (yards == null) return
+        setPendingGreenEdgeYards(yards)
+        upsertGreenEdge(selectedGreenEdgeSide, coords, yards)
+        return
+      }
+      if (tees.length === 0) {
+        window.alert('Place at least one tee (furthest back) before adding distance markers.')
+        return
+      }
 
-      const yards = promptForYards(pendingYards)
-      if (yards == null) return
-      setPendingYards(yards)
-      addMarker(coords, yards)
+      const yardages = promptForMarkerYardages({
+        fromGreen: pendingYards,
+        fromTee: pendingYardsFromTee,
+      })
+      if (yardages == null) return
+      setPendingYards(yardages.yards)
+      setPendingYardsFromTee(yardages.yardsFromTee)
+      addMarker(coords, yardages.yards, yardages.yardsFromTee)
     },
     [
       addMarker,
@@ -360,9 +476,14 @@ export function LandingZoneEditor(props: ObjectInputProps) {
       dragging,
       green,
       mediaRect,
+      pendingGreenEdgeYards,
       pendingYards,
+      pendingYardsFromTee,
+      selectedGreenEdgeSide,
       selectedTeeIndex,
+      tees.length,
       tool,
+      upsertGreenEdge,
       upsertTee,
     ],
   )
@@ -384,9 +505,23 @@ export function LandingZoneEditor(props: ObjectInputProps) {
         upsertTee(tee.teeIndex, coords)
         return
       }
-      updateMarker(dragging.index, { x: coords.x, y: coords.y })
+      if (dragging.kind === 'marker') {
+        updateMarker(dragging.index, { x: coords.x, y: coords.y })
+        return
+      }
+      if (dragging.kind === 'greenEdge') {
+        updateGreenEdge(dragging.index, { x: coords.x, y: coords.y })
+      }
     },
-    [commitParts, dragging, mediaRect, tees, updateMarker, upsertTee],
+    [
+      commitParts,
+      dragging,
+      mediaRect,
+      tees,
+      updateGreenEdge,
+      updateMarker,
+      upsertTee,
+    ],
   )
 
   const handlePointerUp = useCallback(() => {
@@ -397,8 +532,8 @@ export function LandingZoneEditor(props: ObjectInputProps) {
     return (
       <Card padding={3} radius={2} tone="caution">
         <Text size={1}>
-          Upload a hole graphic above first, then place the green, tee points, and
-          distances from green.
+          Upload a hole graphic above first, then place the green, tee points,
+          fairway distances, and green edges.
         </Text>
       </Card>
     )
@@ -426,10 +561,18 @@ export function LandingZoneEditor(props: ObjectInputProps) {
           onClick={() => setTool('markers')}
         />
         <Button
+          text="Green edges"
+          mode={tool === 'greenEdges' ? 'default' : 'ghost'}
+          tone={tool === 'greenEdges' ? 'primary' : 'default'}
+          onClick={() => setTool('greenEdges')}
+        />
+        <Button
           text="Clear all"
           tone="critical"
           mode="ghost"
-          disabled={!green && tees.length === 0 && markers.length === 0}
+          disabled={
+            !green && tees.length === 0 && markers.length === 0 && greenEdges.length === 0
+          }
           onClick={() => commit(null)}
         />
         <Button
@@ -456,20 +599,76 @@ export function LandingZoneEditor(props: ObjectInputProps) {
             ))}
           </Flex>
         ) : null}
+        {tool === 'greenEdges' ? (
+          <Flex align="center" gap={2} wrap="wrap">
+            {GREEN_EDGE_SIDES.map((side) => (
+              <Button
+                key={side}
+                text={GREEN_EDGE_LABELS[side]}
+                mode={selectedGreenEdgeSide === side ? 'default' : 'ghost'}
+                tone={selectedGreenEdgeSide === side ? 'primary' : 'default'}
+                onClick={() => {
+                  setSelectedGreenEdgeSide(side)
+                  setPendingGreenEdgeYards(DEFAULT_GREEN_EDGE_YARDS[side])
+                }}
+              />
+            ))}
+            <Flex align="center" gap={2}>
+              <Text size={1} muted>
+                Yards to center
+              </Text>
+              <TextInput
+                type="number"
+                value={String(pendingGreenEdgeYards)}
+                onChange={(event) => {
+                  const next = Number.parseFloat(event.currentTarget.value)
+                  if (Number.isFinite(next) && next > 0) {
+                    setPendingGreenEdgeYards(Math.round(next))
+                  }
+                }}
+                style={{ width: '5rem' }}
+              />
+            </Flex>
+          </Flex>
+        ) : null}
         {tool === 'markers' ? (
-          <Flex align="center" gap={2}>
-            <Text size={1} muted>
-              Next yards
-            </Text>
-            <TextInput
-              type="number"
-              value={String(pendingYards)}
-              onChange={(event) => {
-                const next = Number.parseFloat(event.currentTarget.value)
-                if (Number.isFinite(next) && next > 0) setPendingYards(Math.round(next))
-              }}
-              style={{ width: '5rem' }}
-            />
+          <Flex align="center" gap={3} wrap="wrap">
+            <Flex align="center" gap={2}>
+              <Text size={1} muted>
+                Next from green
+              </Text>
+              <TextInput
+                type="number"
+                value={String(pendingYards)}
+                onChange={(event) => {
+                  const next = Number.parseFloat(event.currentTarget.value)
+                  if (Number.isFinite(next) && next > 0) setPendingYards(Math.round(next))
+                }}
+                style={{ width: '5rem' }}
+              />
+            </Flex>
+            <Flex align="center" gap={2}>
+              <Text size={1} muted>
+                Next from tee
+              </Text>
+              <TextInput
+                type="number"
+                value={pendingYardsFromTee != null ? String(pendingYardsFromTee) : ''}
+                placeholder="—"
+                onChange={(event) => {
+                  const raw = event.currentTarget.value.trim()
+                  if (!raw) {
+                    setPendingYardsFromTee(null)
+                    return
+                  }
+                  const next = Number.parseFloat(raw)
+                  if (Number.isFinite(next) && next >= 0) {
+                    setPendingYardsFromTee(Math.round(next))
+                  }
+                }}
+                style={{ width: '5rem' }}
+              />
+            </Flex>
           </Flex>
         ) : null}
         <Flex align="center" gap={1}>
@@ -488,7 +687,9 @@ export function LandingZoneEditor(props: ObjectInputProps) {
           ? 'Click the center of the green. Drag the green marker to adjust.'
           : tool === 'tee'
             ? `Click to place ${teeOptions[selectedTeeIndex]?.name ?? `Tee ${selectedTeeIndex + 1}`}. Drag tee markers to adjust.`
-            : 'Click a point that is a known distance from the green (e.g. 100 yd), then enter yards. Drag markers to adjust; double-click to remove.'}
+            : tool === 'greenEdges'
+              ? `Click the ${GREEN_EDGE_LABELS[selectedGreenEdgeSide].toLowerCase()} edge of the green, then enter yards to center. Drag to move; double-click to edit; Shift+double-click to remove.`
+            : 'Click a fairway point, then enter yards from the green and from the furthest-back tee. Drag to move; double-click to edit; Shift+double-click to remove.'}
         {' '}
         Use + / − to zoom for precise placement.
       </Text>
@@ -653,8 +854,16 @@ export function LandingZoneEditor(props: ObjectInputProps) {
                   <button
                     key={marker._key}
                     type="button"
-                    aria-label={`${marker.yards} yards from green`}
-                    title={`${marker.yards} yd`}
+                    aria-label={
+                      Number.isFinite(marker.yardsFromTee)
+                        ? `${marker.yards} yards from green, ${marker.yardsFromTee} from tee`
+                        : `${marker.yards} yards from green`
+                    }
+                    title={
+                      Number.isFinite(marker.yardsFromTee)
+                        ? `${marker.yards} yd green · ${marker.yardsFromTee} yd tee`
+                        : `${marker.yards} yd from green`
+                    }
                     onPointerDown={(event) => {
                       event.stopPropagation()
                       event.currentTarget.setPointerCapture(event.pointerId)
@@ -662,7 +871,21 @@ export function LandingZoneEditor(props: ObjectInputProps) {
                     }}
                     onDoubleClick={(event) => {
                       event.stopPropagation()
-                      removeMarker(index)
+                      if (event.shiftKey) {
+                        removeMarker(index)
+                        return
+                      }
+                      const yardages = promptForMarkerYardages({
+                        fromGreen: marker.yards,
+                        fromTee:
+                          Number.isFinite(marker.yardsFromTee)
+                            ? Number(marker.yardsFromTee)
+                            : pendingYardsFromTee,
+                      })
+                      if (!yardages) return
+                      updateMarker(index, yardages)
+                      setPendingYards(yardages.yards)
+                      setPendingYardsFromTee(yardages.yardsFromTee)
                     }}
                     style={{
                       position: 'absolute',
@@ -674,11 +897,62 @@ export function LandingZoneEditor(props: ObjectInputProps) {
                       marginTop: -6,
                       borderRadius: '9999px',
                       border: '2px solid #fff',
-                      background: '#38bdf8',
+                      background: Number.isFinite(marker.yardsFromTee)
+                        ? '#38bdf8'
+                        : '#f59e0b',
                       cursor: 'grab',
                       zIndex: 2,
                     }}
                   />
+                ))
+              : null}
+
+            {mediaRect
+              ? greenEdges.map((edge, index) => (
+                  <button
+                    key={edge._key}
+                    type="button"
+                    aria-label={`${GREEN_EDGE_LABELS[edge.side]} green edge, ${edge.yards} yards from center`}
+                    title={`${GREEN_EDGE_LABELS[edge.side]} · ${edge.yards} yd`}
+                    onPointerDown={(event) => {
+                      event.stopPropagation()
+                      event.currentTarget.setPointerCapture(event.pointerId)
+                      setDragging({ kind: 'greenEdge', index })
+                      setSelectedGreenEdgeSide(edge.side)
+                      setTool('greenEdges')
+                    }}
+                    onDoubleClick={(event) => {
+                      event.stopPropagation()
+                      if (event.shiftKey) {
+                        removeGreenEdge(index)
+                        return
+                      }
+                      const yards = promptForYards(edge.yards)
+                      if (yards == null) return
+                      updateGreenEdge(index, { yards })
+                      setPendingGreenEdgeYards(yards)
+                    }}
+                    style={{
+                      position: 'absolute',
+                      left: mediaRect.left + (edge.x / 100) * mediaRect.width,
+                      top: mediaRect.top + (edge.y / 100) * mediaRect.height,
+                      width: 14,
+                      height: 14,
+                      marginLeft: -7,
+                      marginTop: -7,
+                      borderRadius: '4px',
+                      border: '2px solid #fff',
+                      background: '#16a34a',
+                      color: '#fff',
+                      fontSize: 8,
+                      fontWeight: 700,
+                      lineHeight: '10px',
+                      cursor: 'grab',
+                      zIndex: 4,
+                    }}
+                  >
+                    {edge.side[0]?.toUpperCase()}
+                  </button>
                 ))
               : null}
           </div>

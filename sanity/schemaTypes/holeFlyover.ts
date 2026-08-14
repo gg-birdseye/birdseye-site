@@ -63,7 +63,7 @@ export default defineType({
       title: 'Landing zone ruler',
       type: 'object',
       description:
-        'Green center, tee points (one per scorecard tee), and known distances from the green (50, 100, 150…). Players tap/drag a target on Hole View to see tee→target and target→green yards.',
+        'Green center, tee points, fairway distance markers (yards from green + furthest tee), and optional green edge markers (L/R/F/B) for width/depth.',
       fields: [
         defineField({
           name: 'green',
@@ -128,9 +128,9 @@ export default defineType({
         }),
         defineField({
           name: 'markers',
-          title: 'Distances from green',
+          title: 'Distance markers',
           description:
-            'Click a point that is a known distance from the green center (e.g. 100 yd) and enter that yardage. Place several along the fairway — especially where the aerial is skewed.',
+            'Click a fairway point and enter yards from the green and from the furthest-back tee. Place several along the hole — especially where the aerial is skewed.',
           type: 'array',
           of: [
             {
@@ -155,11 +155,83 @@ export default defineType({
                   type: 'number',
                   validation: (Rule) => Rule.required().positive(),
                 }),
+                defineField({
+                  name: 'yardsFromTee',
+                  title: 'Yards from furthest tee',
+                  description:
+                    'Distance from the furthest-back tee to this point (along the hole or as you measure it). Used for the tee→landing ruler leg.',
+                  type: 'number',
+                  validation: (Rule) => Rule.min(0),
+                }),
               ],
               preview: {
-                select: { yards: 'yards', x: 'x', y: 'y' },
-                prepare: ({ yards, x, y }) => ({
-                  title: Number.isFinite(yards) ? `${yards} yd from green` : 'Marker',
+                select: { yards: 'yards', yardsFromTee: 'yardsFromTee', x: 'x', y: 'y' },
+                prepare: ({ yards, yardsFromTee, x, y }) => ({
+                  title: Number.isFinite(yards)
+                    ? Number.isFinite(yardsFromTee)
+                      ? `${yards} yd green · ${yardsFromTee} yd tee`
+                      : `${yards} yd from green`
+                    : 'Marker',
+                  subtitle:
+                    Number.isFinite(x) && Number.isFinite(y)
+                      ? `${x}%, ${y}%`
+                      : 'Unset',
+                }),
+              },
+            },
+          ],
+        }),
+        defineField({
+          name: 'greenEdges',
+          title: 'Green edges',
+          description:
+            'Left, right, front, and back of the green with yards to center. Improves near-green distances and shows green width × depth to players.',
+          type: 'array',
+          of: [
+            {
+              type: 'object',
+              name: 'landingZoneGreenEdge',
+              fields: [
+                defineField({
+                  name: 'side',
+                  title: 'Side',
+                  type: 'string',
+                  options: {
+                    list: [
+                      { title: 'Front', value: 'front' },
+                      { title: 'Back', value: 'back' },
+                      { title: 'Left', value: 'left' },
+                      { title: 'Right', value: 'right' },
+                    ],
+                    layout: 'radio',
+                  },
+                  validation: (Rule) => Rule.required(),
+                }),
+                defineField({
+                  name: 'x',
+                  title: 'Horizontal position (%)',
+                  type: 'number',
+                  validation: (Rule) => Rule.min(0).max(100),
+                }),
+                defineField({
+                  name: 'y',
+                  title: 'Vertical position (%)',
+                  type: 'number',
+                  validation: (Rule) => Rule.min(0).max(100),
+                }),
+                defineField({
+                  name: 'yards',
+                  title: 'Yards from green center',
+                  type: 'number',
+                  validation: (Rule) => Rule.required().positive(),
+                }),
+              ],
+              preview: {
+                select: { side: 'side', yards: 'yards', x: 'x', y: 'y' },
+                prepare: ({ side, yards, x, y }) => ({
+                  title: Number.isFinite(yards)
+                    ? `${String(side ?? 'edge')} · ${yards} yd`
+                    : String(side ?? 'Green edge'),
                   subtitle:
                     Number.isFinite(x) && Number.isFinite(y)
                       ? `${x}%, ${y}%`
