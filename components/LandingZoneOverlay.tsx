@@ -88,6 +88,8 @@ export function LandingZoneOverlay({
   const [hoverTarget, setHoverTarget] = useState<LandingZonePoint | null>(null);
   const touchOriginRef = useRef<{ x: number; y: number } | null>(null);
   const touchSwipedRef = useRef(false);
+  const touchDraggingRef = useRef(false);
+  const dragProgressRef = useRef<number | null>(null);
 
   const tee = useMemo(() => {
     if (!ready || !landingZone) return null;
@@ -110,6 +112,22 @@ export function LandingZoneOverlay({
   useEffect(() => {
     setHoverTarget(null);
   }, [cameraPath, landingZone, selectedTeeIndex]);
+
+  // A finger can't hover, so the reticle stays where a drag left it and the
+  // yardages stay readable. It resumes tracking the drone as soon as the
+  // flyover moves again on its own.
+  useEffect(() => {
+    if (!hoverTarget) return;
+    if (touchDraggingRef.current) {
+      dragProgressRef.current = progress;
+      return;
+    }
+    if (dragProgressRef.current == null || dragProgressRef.current === progress) {
+      return;
+    }
+    dragProgressRef.current = null;
+    setHoverTarget(null);
+  }, [hoverTarget, progress]);
 
   const updateMediaRect = useCallback(() => {
     const container = contentRef.current;
@@ -166,10 +184,11 @@ export function LandingZoneOverlay({
     [contentRef, mediaRect],
   );
 
+  // Touch drags are driven by the touch handlers below, which have to keep the
+  // reticle put once the finger lifts — pointer events for a touch end with a
+  // leave that would wipe the reading.
   const handlePointerMove = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
-      // A finger has no hover state, and a swipe here scrubs the flyover — the
-      // reticle should keep tracking the drone instead of chasing the touch.
       if (event.pointerType === "touch") return;
       const coords = coordsFromPointer(event.clientX, event.clientY);
       if (!coords) {
@@ -181,9 +200,13 @@ export function LandingZoneOverlay({
     [coordsFromPointer],
   );
 
-  const handlePointerLeave = useCallback(() => {
-    setHoverTarget(null);
-  }, []);
+  const handlePointerLeave = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.pointerType === "touch") return;
+      setHoverTarget(null);
+    },
+    [],
+  );
 
   const handleTouchStart = useCallback(
     (event: ReactTouchEvent<HTMLDivElement>) => {
@@ -192,6 +215,8 @@ export function LandingZoneOverlay({
         ? { x: touch.clientX, y: touch.clientY }
         : null;
       touchSwipedRef.current = false;
+      touchDraggingRef.current = true;
+      dragProgressRef.current = null;
     },
     [],
   );
@@ -200,7 +225,14 @@ export function LandingZoneOverlay({
     (event: ReactTouchEvent<HTMLDivElement>) => {
       const origin = touchOriginRef.current;
       const touch = event.touches[0];
-      if (!origin || !touch || touchSwipedRef.current) return;
+      if (!origin || !touch) return;
+
+      // The reticle follows the finger; the vertical component of the same
+      // gesture scrubs the flyover (handled by the panel's scroll forwarding).
+      const coords = coordsFromPointer(touch.clientX, touch.clientY);
+      if (coords) setHoverTarget(coords);
+
+      if (touchSwipedRef.current) return;
       if (
         Math.abs(touch.clientX - origin.x) > SWIPE_SCRUB_THRESHOLD_PX ||
         Math.abs(touch.clientY - origin.y) > SWIPE_SCRUB_THRESHOLD_PX
@@ -208,8 +240,13 @@ export function LandingZoneOverlay({
         touchSwipedRef.current = true;
       }
     },
-    [],
+    [coordsFromPointer],
   );
+
+  const handleTouchEnd = useCallback(() => {
+    touchDraggingRef.current = false;
+    touchOriginRef.current = null;
+  }, []);
 
   const handleClick = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
@@ -302,6 +339,8 @@ export function LandingZoneOverlay({
       onPointerLeave={handlePointerLeave}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
       onClick={handleClick}
       role="presentation"
       aria-label="Landing zone distance ruler"
