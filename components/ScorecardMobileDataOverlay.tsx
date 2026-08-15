@@ -2,8 +2,9 @@
 
 import { PanelCloseButton } from "@/components/PanelCloseButton";
 import type { ScorecardChartTeeOption } from "@/components/ScorecardChartOverlay";
+import { useForwardScrollToVideo } from "@/hooks/useForwardScrollToVideo";
 import { teeSelectedLabelColor } from "@/lib/constants/teeColors";
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 
 export type ScorecardMobileTee = {
   name: string;
@@ -37,141 +38,6 @@ function displayValue(raw: string | undefined): string {
   return value;
 }
 
-/** Forward scroll/touch on the hole readout to the page so the flyover advances.
- * Touch moves are applied live; on release we continue with inertial scrolling
- * so a long swipe keeps scrubbing like a swipe on the video itself.
- */
-function useForwardScrollToVideo(open: boolean) {
-  const regionRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const el = regionRef.current;
-    if (!open || !el) return;
-
-    let lastY: number | null = null;
-    let lastT = 0;
-    /** Vertical scroll velocity in px/ms (positive = scroll down / advance). */
-    let velocityY = 0;
-    let momentumRaf = 0;
-
-    const stopMomentum = () => {
-      if (momentumRaf) {
-        cancelAnimationFrame(momentumRaf);
-        momentumRaf = 0;
-      }
-    };
-
-    const maxScrollTop = () =>
-      Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
-
-    const applyScrollDy = (dy: number) => {
-      if (dy === 0) return 0;
-      const top = window.scrollY;
-      const next = Math.min(maxScrollTop(), Math.max(0, top + dy));
-      const applied = next - top;
-      if (applied !== 0) {
-        window.scrollTo({ top: next, left: 0, behavior: "instant" });
-      }
-      return applied;
-    };
-
-    const startMomentum = () => {
-      stopMomentum();
-      let prev = performance.now();
-
-      const tick = (now: number) => {
-        const dt = Math.min(34, Math.max(0, now - prev));
-        prev = now;
-        if (dt === 0) {
-          momentumRaf = requestAnimationFrame(tick);
-          return;
-        }
-
-        const dy = velocityY * dt;
-        const applied = applyScrollDy(dy);
-        // Stop if we hit the scroll bound.
-        if (Math.abs(dy) > 0.5 && Math.abs(applied) < Math.abs(dy) * 0.25) {
-          velocityY = 0;
-          momentumRaf = 0;
-          return;
-        }
-
-        // Exponential decay (~native fling feel).
-        velocityY *= Math.exp(-0.0045 * dt);
-        if (Math.abs(velocityY) < 0.025) {
-          velocityY = 0;
-          momentumRaf = 0;
-          return;
-        }
-
-        momentumRaf = requestAnimationFrame(tick);
-      };
-
-      momentumRaf = requestAnimationFrame(tick);
-    };
-
-    const onWheel = (event: WheelEvent) => {
-      stopMomentum();
-      event.preventDefault();
-      applyScrollDy(event.deltaY);
-    };
-
-    const onTouchStart = (event: TouchEvent) => {
-      stopMomentum();
-      lastY = event.touches[0]?.clientY ?? null;
-      lastT = performance.now();
-      velocityY = 0;
-    };
-
-    const onTouchMove = (event: TouchEvent) => {
-      if (lastY == null || event.touches.length !== 1) return;
-      const y = event.touches[0].clientY;
-      const t = performance.now();
-      const dy = lastY - y;
-      const dt = Math.max(1, t - lastT);
-      lastY = y;
-      lastT = t;
-      if (dy === 0) return;
-      event.preventDefault();
-      applyScrollDy(dy);
-      const instant = dy / dt;
-      velocityY = velocityY * 0.55 + instant * 0.45;
-    };
-
-    const onTouchEnd = () => {
-      lastY = null;
-      if (Math.abs(velocityY) > 0.05) {
-        startMomentum();
-      } else {
-        velocityY = 0;
-      }
-    };
-
-    const onTouchCancel = () => {
-      lastY = null;
-      velocityY = 0;
-      stopMomentum();
-    };
-
-    el.addEventListener("wheel", onWheel, { passive: false });
-    el.addEventListener("touchstart", onTouchStart, { passive: true });
-    el.addEventListener("touchmove", onTouchMove, { passive: false });
-    el.addEventListener("touchend", onTouchEnd);
-    el.addEventListener("touchcancel", onTouchCancel);
-
-    return () => {
-      stopMomentum();
-      el.removeEventListener("wheel", onWheel);
-      el.removeEventListener("touchstart", onTouchStart);
-      el.removeEventListener("touchmove", onTouchMove);
-      el.removeEventListener("touchend", onTouchEnd);
-      el.removeEventListener("touchcancel", onTouchCancel);
-    };
-  }, [open]);
-
-  return regionRef;
-}
-
 export function ScorecardMobileDataOverlay({
   open,
   activeHole,
@@ -183,7 +49,8 @@ export function ScorecardMobileDataOverlay({
   onClose,
   totalPar,
 }: ScorecardMobileDataOverlayProps) {
-  const holeRegionRef = useForwardScrollToVideo(open);
+  const holeRegionRef = useRef<HTMLDivElement>(null);
+  useForwardScrollToVideo(holeRegionRef, open);
 
   if (!open) return null;
 

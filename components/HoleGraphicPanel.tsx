@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import {
+  SWIPE_SCRUB_THRESHOLD_PX,
+  useForwardScrollToVideo,
+} from "@/hooks/useForwardScrollToVideo";
 import type {
   CameraPathPoint,
   HoleGraphic,
@@ -116,6 +120,13 @@ export function HoleGraphicPanel({
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [disclaimerOpen]);
+
+  // The ruler overlay opts out of native panning so it can read taps, which
+  // would otherwise leave this area unable to scrub the flyover by swipe.
+  useForwardScrollToVideo(contentRef, open, {
+    thresholdPx: SWIPE_SCRUB_THRESHOLD_PX,
+    forwardWheel: false,
+  });
 
   if (!open) return null;
 

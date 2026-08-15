@@ -4,11 +4,14 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type RefObject,
+  type TouchEvent as ReactTouchEvent,
 } from "react";
+import { SWIPE_SCRUB_THRESHOLD_PX } from "@/hooks/useForwardScrollToVideo";
 import {
   containedMediaRect,
   pointerToMediaPercent,
@@ -83,6 +86,8 @@ export function LandingZoneOverlay({
     height: number;
   } | null>(null);
   const [hoverTarget, setHoverTarget] = useState<LandingZonePoint | null>(null);
+  const touchOriginRef = useRef<{ x: number; y: number } | null>(null);
+  const touchSwipedRef = useRef(false);
 
   const tee = useMemo(() => {
     if (!ready || !landingZone) return null;
@@ -163,6 +168,9 @@ export function LandingZoneOverlay({
 
   const handlePointerMove = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
+      // A finger has no hover state, and a swipe here scrubs the flyover — the
+      // reticle should keep tracking the drone instead of chasing the touch.
+      if (event.pointerType === "touch") return;
       const coords = coordsFromPointer(event.clientX, event.clientY);
       if (!coords) {
         setHoverTarget(null);
@@ -177,8 +185,40 @@ export function LandingZoneOverlay({
     setHoverTarget(null);
   }, []);
 
+  const handleTouchStart = useCallback(
+    (event: ReactTouchEvent<HTMLDivElement>) => {
+      const touch = event.touches[0];
+      touchOriginRef.current = touch
+        ? { x: touch.clientX, y: touch.clientY }
+        : null;
+      touchSwipedRef.current = false;
+    },
+    [],
+  );
+
+  const handleTouchMove = useCallback(
+    (event: ReactTouchEvent<HTMLDivElement>) => {
+      const origin = touchOriginRef.current;
+      const touch = event.touches[0];
+      if (!origin || !touch || touchSwipedRef.current) return;
+      if (
+        Math.abs(touch.clientX - origin.x) > SWIPE_SCRUB_THRESHOLD_PX ||
+        Math.abs(touch.clientY - origin.y) > SWIPE_SCRUB_THRESHOLD_PX
+      ) {
+        touchSwipedRef.current = true;
+      }
+    },
+    [],
+  );
+
   const handleClick = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
+      // Browsers still emit a click after a swipe that scrubbed the flyover.
+      if (touchSwipedRef.current) {
+        touchSwipedRef.current = false;
+        return;
+      }
+
       const coords = coordsFromPointer(event.clientX, event.clientY);
       if (!coords) return;
 
@@ -260,6 +300,8 @@ export function LandingZoneOverlay({
       className="course-hole-graphic-landing-overlay"
       onPointerMove={handlePointerMove}
       onPointerLeave={handlePointerLeave}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
       onClick={handleClick}
       role="presentation"
       aria-label="Landing zone distance ruler"

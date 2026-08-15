@@ -3025,6 +3025,7 @@ html.course-hole-selector-grid-open .course-video-menu {
   width: 100%;
   height: 100%;
   min-height: 0;
+  touch-action: none;
 }
 
 .course-hole-graphic-disclaimer {
