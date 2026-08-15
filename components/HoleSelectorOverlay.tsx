@@ -152,13 +152,9 @@ export function HoleSelectorOverlay({
       className="course-hole-selector-btn"
       onClick={() => {
         if (isMobilePortrait && !hideGrid && !isFullscreen) return;
-        setOpen((value) => {
-          const nextOpen = !value;
-          if (nextOpen) {
-            onOpen?.();
-          }
-          return nextOpen;
-        });
+        const nextOpen = !open;
+        setOpen(nextOpen);
+        if (nextOpen) onOpen?.();
       }}
       aria-expanded={showGrid}
       aria-haspopup="dialog"
@@ -294,7 +290,11 @@ export function HoleSelectorOverlay({
                     type="button"
                     onClick={() => {
                       onHoleSelect(hole);
-                      if (!isMobilePortrait || isFullscreen) setOpen(false);
+                      // Portrait keeps the grid up as a standing picker unless
+                      // a panel is waiting underneath it.
+                      if (!isMobilePortrait || isFullscreen || panelOpen != null) {
+                        setOpen(false);
+                      }
                     }}
                     className={`course-hole-selector-grid-btn ${
                       isActive ? "course-hole-selector-grid-btn-active" : ""

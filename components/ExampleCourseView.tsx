@@ -302,6 +302,7 @@ export function ExampleCourseView({
   const activeHoleRef = useRef(1);
   const syncedFromUrl = useRef(false);
   const didInitBackTee = useRef(false);
+  const didInitAerialDefault = useRef(false);
 
   const setBarProgress = useCallback((p: number) => {
     if (progressFillRef.current) {
@@ -329,6 +330,20 @@ export function ExampleCourseView({
       desktopMq.removeEventListener("change", update);
     };
   }, []);
+
+  // Land on the aerial hole view. Mobile landscape has too little room for the
+  // side-by-side layout, so it still opens on the plain flyover.
+  useEffect(() => {
+    if (didInitAerialDefault.current) return;
+    didInitAerialDefault.current = true;
+    if (!pagePanels.aerial || holeGraphicMap.size === 0) return;
+    const showsAerialByDefault =
+      window.matchMedia("(min-width: 768px) and (min-height: 601px)").matches ||
+      window.matchMedia("(max-width: 767px) and (orientation: portrait)").matches;
+    if (!showsAerialByDefault) return;
+    setAerialViewMode("hole");
+    setPanelOpen("map");
+  }, [holeGraphicMap, pagePanels.aerial]);
 
   // Portrait scorecard → landscape: return to video with left nav inactive.
   const wasMobilePortraitRef = useRef(isMobilePortrait);
@@ -1024,7 +1039,9 @@ export function ExampleCourseView({
         accentColor={accentColor}
         onHoleSelect={goToHole}
         onOpen={() => {
-          if (panelOpen === "map") {
+          // The hole view layers under the grid, so picking a hole returns to
+          // it. The full-course aerial map has no room for both.
+          if (panelOpen === "map" && !isAerialHoleViewOpen) {
             setPanelOpen(null);
           }
         }}
