@@ -70,6 +70,7 @@ export function HoleGraphicPanel({
   const [rulerVisible, setRulerVisible] = useState(true);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [teeMenuOpen, setTeeMenuOpen] = useState(false);
+  const teeMenuHoverRef = useRef(false);
   const [disclaimerOpen, setDisclaimerOpen] = useState(false);
   const hasCameraTrack = cameraPathHasTrack(cameraPath);
   const hasLandingZone = landingZoneIsReady(landingZone);
@@ -91,7 +92,10 @@ export function HoleGraphicPanel({
   }, [open]);
 
   useEffect(() => {
-    if (!actionsOpen) setTeeMenuOpen(false);
+    if (!actionsOpen) {
+      setTeeMenuOpen(false);
+      teeMenuHoverRef.current = false;
+    }
   }, [actionsOpen]);
 
   useEffect(() => {
@@ -182,15 +186,31 @@ export function HoleGraphicPanel({
       className={`course-hole-graphic-panel-menu-flyout${
         teeMenuOpen ? " course-hole-graphic-panel-menu-flyout-open" : ""
       }`}
-      onMouseEnter={() => setTeeMenuOpen(true)}
-      onMouseLeave={() => setTeeMenuOpen(false)}
+      onPointerEnter={(event) => {
+        // Touch fires enter on tap, which would race the click toggle below
+        // and leave the flyout closed until a second tap.
+        if (event.pointerType !== "mouse") return;
+        teeMenuHoverRef.current = true;
+        setTeeMenuOpen(true);
+      }}
+      onPointerLeave={(event) => {
+        if (event.pointerType !== "mouse") return;
+        teeMenuHoverRef.current = false;
+        setTeeMenuOpen(false);
+      }}
     >
       <button
         type="button"
         className="course-aerial-mode-btn course-hole-graphic-panel-menu-flyout-trigger"
         aria-expanded={teeMenuOpen}
         aria-haspopup="menu"
-        onClick={() => setTeeMenuOpen((open) => !open)}
+        onClick={() => {
+          if (teeMenuHoverRef.current) {
+            setTeeMenuOpen(true);
+            return;
+          }
+          setTeeMenuOpen((open) => !open);
+        }}
       >
         <span>Select Tee</span>
         <svg
