@@ -3,7 +3,7 @@ import { CourseThumbnailGrid } from "@/components/CourseThumbnailGrid";
 import { SiteLogoHeader } from "@/components/SiteLogoHeader";
 import { getInactiveCourseSlugs } from "@/lib/billing/access";
 import {
-  courseHasPlayableVideo,
+  courseIsPubliclyIndexable,
   getCoursesList,
 } from "@/lib/sanity/courses";
 
@@ -29,7 +29,7 @@ export default async function CoursesIndexPage() {
   const inactiveSlugs = await getInactiveCourseSlugs();
   const withVideo = courses.filter(
     (c) =>
-      courseHasPlayableVideo(c) &&
+      courseIsPubliclyIndexable(c) &&
       Boolean(c.slug) &&
       !inactiveSlugs.has(c.slug as string),
   );

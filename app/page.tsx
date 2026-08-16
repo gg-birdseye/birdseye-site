@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { GetInTouchButton } from "@/components/GetInTouchButton";
 import { HomeClientsSection } from "@/components/HomeClientsSection";
 import { JsonLd } from "@/components/JsonLd";
@@ -15,6 +16,22 @@ import {
   buildWebsiteJsonLd,
 } from "@/lib/seo/course-json-ld";
 import { getSiteUrl } from "@/lib/seo/site";
+
+const homeDescription =
+  "Turn your course footage into a rich, explorable preview golfers can experience before they tee off.";
+
+export const metadata: Metadata = {
+  title: "Birdseye | Golf Course Preview",
+  description: homeDescription,
+  alternates: { canonical: "/" },
+  openGraph: {
+    title: "Birdseye | Golf Course Preview",
+    description: homeDescription,
+    type: "website",
+    url: "/",
+    siteName: "Birdseye",
+  },
+};
 
 export default function Home() {
   const videoSrc = LANDING_INTRO_VIDEO_SRC;

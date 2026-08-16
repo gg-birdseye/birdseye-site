@@ -241,6 +241,14 @@ export default defineType({
             }),
           ],
         }),
+        defineField({
+          name: 'noIndex',
+          title: 'Hide from Google',
+          type: 'boolean',
+          initialValue: false,
+          description:
+            'Turn on for demo / internal courses. Excludes the page from the sitemap and adds a noindex tag.',
+        }),
       ],
     }),
     defineField({

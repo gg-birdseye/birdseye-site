@@ -296,6 +296,7 @@ export type CourseDoc = {
     metaTitle?: string | null;
     metaDescription?: string | null;
     ogImage?: CourseLogo | null;
+    noIndex?: boolean | null;
   } | null;
   aerialMap?: CourseAerialMap;
   aerialHotspots?: CourseAerialHotspotDoc[] | null;
@@ -567,6 +568,20 @@ export function courseHoleGraphics(course: CourseDoc | null): HoleGraphicEntry[]
 export function courseHasPlayableVideo(course: CourseDoc | null): boolean {
   if (!course) return false;
   return courseHolePlaybacks(course).length > 0;
+}
+
+/** Demo / internal slugs kept out of Google until marked otherwise in Sanity. */
+const DEFAULT_NOINDEX_COURSE_SLUGS = new Set([
+  "example-course",
+  "course-two",
+]);
+
+/** Whether a course should appear in the sitemap and public course grid. */
+export function courseIsPubliclyIndexable(course: CourseDoc | null): boolean {
+  if (!course?.slug || !courseHasPlayableVideo(course)) return false;
+  if (course.seo?.noIndex) return false;
+  if (DEFAULT_NOINDEX_COURSE_SLUGS.has(course.slug)) return false;
+  return true;
 }
 
 /** Resolved panel toggles and course links for the course preview UI. */
@@ -1216,6 +1231,7 @@ const coursesListQuery = defineQuery(`
     title,
     "slug": slug.current,
     holeCount,
+    seo { noIndex },
     ${courseLogoProjection},
     ${courseAerialMapProjection},
     ${coursePagePanelsProjection},
@@ -1246,6 +1262,7 @@ const courseBySlugQuery = defineQuery(`
     seo {
       metaTitle,
       metaDescription,
+      noIndex,
       ogImage {
         alt,
         asset->{

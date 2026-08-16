@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { DM_Sans } from "next/font/google";
+import { getSiteUrl } from "@/lib/seo/site";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -9,13 +10,14 @@ const dmSans = DM_Sans({
   display: "swap",
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+const siteUrl = getSiteUrl();
+const googleSiteVerification = process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION?.trim();
 
 const defaultDescription =
   "Turn your course footage into a rich, explorable preview golfers can experience before they tee off.";
 
 export const metadata: Metadata = {
-  metadataBase: siteUrl ? new URL(siteUrl) : undefined,
+  metadataBase: new URL(siteUrl),
   title: {
     default: "Birdseye | Golf Course Preview",
     template: "%s",
@@ -32,6 +34,9 @@ export const metadata: Metadata = {
     title: "Birdseye | Golf Course Preview",
     description: defaultDescription,
   },
+  ...(googleSiteVerification
+    ? { verification: { google: googleSiteVerification } }
+    : {}),
 };
 
 export const viewport: Viewport = {

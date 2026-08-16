@@ -12,6 +12,7 @@ import {
   courseHasPlayableVideo,
   courseHoleDescriptions,
   courseHolePlaybacks,
+  courseIsPubliclyIndexable,
   courseLogoSrc,
   coursePagePanels,
   coursePrimaryPlayback,
@@ -62,6 +63,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   }
 
+  const indexable = courseIsPubliclyIndexable(course);
   const { metaTitle, metaDescription } = resolveCourseSeo({
     title: course.title,
     city: course.address?.city,
@@ -79,6 +81,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: metaTitle,
     description: metaDescription,
+    robots: indexable
+      ? { index: true, follow: true }
+      : { index: false, follow: false },
     alternates: { canonical: canonicalPath },
     openGraph: {
       title: metaTitle,
