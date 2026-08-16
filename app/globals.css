@@ -306,13 +306,7 @@ html.course-video-is-fullscreen.course-hole-selector-grid-open
 html.course-video-is-fullscreen.course-hole-selector-grid-open
   .course-hole-selector-panel {
   z-index: 217 !important;
-  padding:
-    calc(
-      env(safe-area-inset-top, 0px) + var(--course-hole-nav-inset) +
-        var(--course-hole-selector-btn-size) + 0.75rem
-    )
-    var(--course-hole-nav-inset)
-    calc(1rem + env(safe-area-inset-bottom, 0px)) !important;
+  padding: 0 !important;
 }
 
 html.course-video-is-fullscreen.course-hole-selector-grid-open
@@ -328,13 +322,7 @@ html.course-video-is-fullscreen.course-hole-selector-grid-open
 @media (min-width: 768px) and (min-height: 601px) {
   html.course-video-is-fullscreen.course-hole-selector-grid-open
     .course-hole-selector-panel {
-    padding:
-      calc(
-        env(safe-area-inset-top, 0px) + var(--course-hole-nav-inset-desktop) +
-          var(--course-hole-selector-btn-size-desktop) + 0.75rem
-      )
-      var(--course-hole-nav-inset-desktop)
-      calc(1.25rem + env(safe-area-inset-bottom, 0px)) !important;
+    padding: 0 !important;
   }
 }
 
@@ -628,9 +616,13 @@ html.course-video-is-fullscreen .course-hole-nav-arrow {
   display: none;
 }
 
-/* Keep the course menu (and its dropdown) above the hole-selector grid. */
+/* The grid mosaic covers the viewport, so the course menu (and its dropdown)
+   drops behind it. Portrait re-shows it below, where the grid only fills the
+   area under the video. */
 html.course-hole-selector-grid-open .course-video-menu {
-  z-index: 42;
+  z-index: 30;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /** Hole info sits above the footer without changing flex layout (keeps hole nav centered). */
@@ -2811,25 +2803,14 @@ html.course-hole-selector-grid-open .course-video-menu {
     z-index: 38;
   }
 
-  /* While the grid is open, float the top bar (selector toggle, view buttons,
-     X) above it; hide the panel chrome so the grid shows and receives clicks
-     across the full width. */
+  /* The grid mosaic owns the whole viewport while it's open — drop the hole
+     view and its chrome (view menu, close X) behind it. Visibility keeps the
+     panel's box measured so the graphic overlays don't have to re-fit. */
   html.course-hole-selector-grid-open.course-aerial-hole-view-open
     .course-hole-graphic-panel {
-    z-index: 39;
-    background: none;
-    backdrop-filter: none;
-    pointer-events: none;
-  }
-
-  html.course-hole-selector-grid-open.course-aerial-hole-view-open
-    .course-hole-graphic-panel-topbar {
-    pointer-events: auto;
-  }
-
-  html.course-hole-selector-grid-open.course-aerial-hole-view-open
-    .course-hole-graphic-panel-content {
+    z-index: 30;
     visibility: hidden;
+    pointer-events: none;
   }
 
   .course-aerial-hole-view-open .course-hole-graphic-panel--desktop-topbar .course-hole-graphic-panel-content {
@@ -3590,54 +3571,93 @@ html.course-hole-selector-grid-open .course-video-menu {
   bottom: var(--course-mobile-bar-h);
   display: flex;
   flex-direction: column;
-  padding:
-    calc(
-      env(safe-area-inset-top, 0px) + var(--course-hole-nav-inset) +
-        var(--course-hole-selector-btn-size) + 0.75rem
-    )
-    var(--course-hole-nav-inset)
-    1rem;
+  padding: 0;
   border: 0;
   border-radius: 0;
-  background: linear-gradient(
-    to bottom,
-    rgba(26, 24, 20, 0.94) 0%,
-    rgba(26, 24, 20, 0.9) 100%
-  );
-  backdrop-filter: blur(12px);
+  background: #0a0908;
+  backdrop-filter: none;
   box-shadow: none;
+  overflow: hidden;
 }
 
 .course-hole-selector-grid {
   display: grid;
   min-height: 0;
   flex: 1;
-  gap: 0.5rem;
+  gap: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .course-hole-selector-grid-btn {
-  display: flex;
+  position: relative;
+  display: block;
   height: 100%;
   min-height: 0;
+  width: 100%;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: #1a1814;
+  padding: 0;
+  color: #fff;
+  cursor: pointer;
+  transition: none;
+}
+
+.course-hole-selector-grid-btn:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.75);
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+.course-hole-selector-grid-thumb {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  filter: grayscale(1) brightness(0.55);
+  transition: filter 0.2s ease;
+  pointer-events: none;
+}
+
+.course-hole-selector-grid-btn-active .course-hole-selector-grid-thumb {
+  filter: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .course-hole-selector-grid-btn:hover .course-hole-selector-grid-thumb {
+    filter: none;
+  }
+}
+
+.course-hole-selector-grid-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.55) 0%,
+    rgba(0, 0, 0, 0.12) 45%,
+    rgba(0, 0, 0, 0.2) 100%
+  );
+  pointer-events: none;
+}
+
+.course-hole-selector-grid-label {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.375rem;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 0.5rem;
-  background: rgba(255, 255, 255, 0.08);
-  padding: 0.5rem;
-  color: rgba(255, 255, 255, 0.88);
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-}
-
-.course-hole-selector-grid-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-}
-
-.course-hole-selector-grid-btn-active {
-  color: #fff;
+  gap: 0.3rem;
+  padding: 0.35rem;
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85), 0 2px 10px rgba(0, 0, 0, 0.45);
 }
 
 .course-hole-selector-grid-hole {
@@ -3653,10 +3673,6 @@ html.course-hole-selector-grid-open .course-video-menu {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   line-height: 1;
-  color: rgba(255, 255, 255, 0.55);
-}
-
-.course-hole-selector-grid-btn-active .course-hole-selector-grid-par {
   color: rgba(255, 255, 255, 0.82);
 }
 
@@ -3687,17 +3703,11 @@ html.course-hole-selector-grid-open .course-video-menu {
   }
 
   .course-hole-selector-panel {
-    padding:
-      calc(
-        env(safe-area-inset-top, 0px) + var(--course-hole-nav-inset-desktop) +
-          var(--course-hole-selector-btn-size-desktop) + 0.75rem
-      )
-      var(--course-hole-nav-inset-desktop)
-      1.25rem;
+    padding: 0;
   }
 
   .course-hole-selector-grid {
-    gap: 0.75rem;
+    gap: 0;
   }
 }
 
@@ -3755,25 +3765,29 @@ html.course-hole-selector-grid-open .course-video-menu {
   }
 
   .course-hole-selector-panel--landscape {
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
-    gap: 0.5rem;
-    padding:
-      calc(env(safe-area-inset-top, 0px) + var(--course-hole-nav-inset))
-      var(--course-hole-nav-inset)
-      calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
   }
 
   .course-hole-selector-landscape-toggle-row {
+    position: absolute;
+    z-index: 2;
+    top: calc(env(safe-area-inset-top, 0px) + var(--course-hole-nav-inset));
+    left: calc(env(safe-area-inset-left, 0px) + var(--course-hole-nav-inset));
     display: flex;
     align-items: flex-start;
     justify-content: flex-start;
     min-height: var(--course-hole-selector-btn-size);
+    pointer-events: auto;
   }
 
   .course-hole-selector-panel--landscape .course-hole-selector-grid {
-    grid-row: 2;
+    flex: 1;
     min-height: 0;
+    width: 100%;
+    height: 100%;
   }
 }
 
@@ -3789,7 +3803,7 @@ html.course-hole-selector-grid-open .course-video-menu {
 
   html.course-hole-selector-grid-open .course-hole-selector-panel {
     top: var(--course-mobile-portrait-video-h);
-    padding: 0.5rem var(--course-hole-nav-inset) 1rem;
+    padding: 0;
     z-index: 35;
   }
 
@@ -3816,6 +3830,13 @@ html.course-hole-selector-grid-open .course-video-menu {
 
   html.course-hole-selector-grid-open .course-hole-selector-open {
     z-index: 38;
+  }
+
+  /* Portrait grid starts below the video, so the on-video chrome stays usable. */
+  html.course-hole-selector-grid-open .course-video-menu {
+    z-index: 100;
+    visibility: visible;
+    pointer-events: auto;
   }
 
   html.course-hole-selector-grid-open .course-video-logo {

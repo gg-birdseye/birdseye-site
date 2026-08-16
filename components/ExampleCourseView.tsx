@@ -225,6 +225,13 @@ export function ExampleCourseView({
     () => new Map(holeVideos.map((h) => [h.holeNumber, h])),
     [holeVideos],
   );
+  const holeThumbnails = useMemo(() => {
+    const map: Record<number, string> = {};
+    for (const hole of holeVideos) {
+      if (hole.posterUrl) map[hole.holeNumber] = hole.posterUrl;
+    }
+    return map;
+  }, [holeVideos]);
   const holeGraphicMap = useMemo(() => {
     const map = new Map<number, HoleGraphic>();
     for (const entry of holeGraphicsProp ?? []) {
@@ -1037,6 +1044,7 @@ export function ExampleCourseView({
         activeHole={activeHole}
         parForHole={parForHole}
         accentColor={accentColor}
+        holeThumbnails={holeThumbnails}
         onHoleSelect={goToHole}
         onOpen={() => {
           // The hole view layers under the grid, so picking a hole returns to

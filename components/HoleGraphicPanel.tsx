@@ -23,6 +23,7 @@ type EmbeddedHoleSelectorProps = {
   parForHole: (hole: number) => number;
   accentColor?: string;
   onHoleSelect: (hole: number) => void;
+  holeThumbnails?: Record<number, string>;
   panelOpen?: "scorecard" | "map" | "courses" | null;
 };
 

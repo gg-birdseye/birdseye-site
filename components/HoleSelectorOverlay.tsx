@@ -9,6 +9,8 @@ type HoleSelectorOverlayProps = {
   parForHole: (hole: number) => number;
   accentColor?: string;
   onHoleSelect: (hole: number) => void;
+  /** Per-hole flyover still URLs (Mux poster or first frame). */
+  holeThumbnails?: Record<number, string>;
   hidden?: boolean;
   /** Render inline in a parent top bar instead of fixed to the viewport. */
   embedded?: boolean;
@@ -54,8 +56,8 @@ export function HoleSelectorOverlay({
   holeCount,
   activeHole,
   parForHole,
-  accentColor = "#CF8018",
   onHoleSelect,
+  holeThumbnails,
   hidden = false,
   embedded = false,
   hideGrid = false,
@@ -231,9 +233,9 @@ export function HoleSelectorOverlay({
     </button>
   );
 
-  // Landscape only: move toggle into the panel top row. Portrait keeps a single
-  // fixed toggle on the video corner. Fullscreen keeps the fixed top-left toggle.
-  const showPanelToggleRow =
+  // Landscape used to float a close toggle over the mosaic; hide the fixed
+  // button instead so tiles stay clear. Selecting a hole closes the grid.
+  const hideFixedToggleForLandscapeGrid =
     isMobileLandscape && !isMobilePortrait && showGrid && !isFullscreen;
 
   return (
@@ -241,7 +243,7 @@ export function HoleSelectorOverlay({
       <div
         className={`course-hole-selector${embedded ? " course-hole-selector-embedded" : ""}${
           open ? " course-hole-selector-open" : ""
-        }${showPanelToggleRow ? " course-hole-selector-fixed-hidden" : ""}`}
+        }${hideFixedToggleForLandscapeGrid ? " course-hole-selector-fixed-hidden" : ""}`}
       >
         {toggleButton}
       </div>
@@ -262,19 +264,12 @@ export function HoleSelectorOverlay({
           ) : null}
           <div
             className={`course-hole-selector-panel${
-              showPanelToggleRow ? " course-hole-selector-panel--landscape" : ""
-            }${isMobilePortrait && showGrid ? " course-hole-selector-panel--portrait-open" : ""}${
-              isFullscreen ? " course-hole-selector-panel--fullscreen" : ""
-            }`}
+              isMobilePortrait && showGrid ? " course-hole-selector-panel--portrait-open" : ""
+            }${isFullscreen ? " course-hole-selector-panel--fullscreen" : ""}`}
             role="dialog"
             aria-label="Select a hole"
             aria-modal={!isMobileOverlayLayout}
           >
-            {showPanelToggleRow ? (
-              <div className="course-hole-selector-landscape-toggle-row">
-                {toggleButton}
-              </div>
-            ) : null}
             <div
               className="course-hole-selector-grid"
               style={{
@@ -284,6 +279,7 @@ export function HoleSelectorOverlay({
             >
               {holes.map((hole) => {
                 const isActive = hole === activeHole;
+                const thumb = holeThumbnails?.[hole];
                 return (
                   <button
                     key={hole}
@@ -296,23 +292,29 @@ export function HoleSelectorOverlay({
                         setOpen(false);
                       }
                     }}
-                    className={`course-hole-selector-grid-btn ${
-                      isActive ? "course-hole-selector-grid-btn-active" : ""
+                    className={`course-hole-selector-grid-btn${
+                      isActive ? " course-hole-selector-grid-btn-active" : ""
                     }`}
-                    style={
-                      isActive
-                        ? {
-                            borderColor: "#00cdac",
-                            backgroundColor: "#00cdac33",
-                          }
-                        : undefined
-                    }
                     aria-label={`Hole ${hole}, par ${parForHole(hole)}`}
                     aria-current={isActive ? "true" : undefined}
                   >
-                    <span className="course-hole-selector-grid-hole">{hole}</span>
-                    <span className="course-hole-selector-grid-par">
-                      Par {parForHole(hole)}
+                    {thumb ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={thumb}
+                        alt=""
+                        className="course-hole-selector-grid-thumb"
+                        draggable={false}
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : null}
+                    <span className="course-hole-selector-grid-scrim" aria-hidden />
+                    <span className="course-hole-selector-grid-label">
+                      <span className="course-hole-selector-grid-hole">{hole}</span>
+                      <span className="course-hole-selector-grid-par">
+                        Par {parForHole(hole)}
+                      </span>
                     </span>
                   </button>
                 );
