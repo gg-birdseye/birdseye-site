@@ -13,6 +13,7 @@ import {
 } from "react";
 import { SWIPE_SCRUB_THRESHOLD_PX } from "@/hooks/useForwardScrollToVideo";
 import {
+  clampPercent,
   containedMediaRect,
   pointerToMediaPercent,
   type ContainedMediaRect,
@@ -86,7 +87,12 @@ export function LandingZoneOverlay({
     height: number;
   } | null>(null);
   const [hoverTarget, setHoverTarget] = useState<LandingZonePoint | null>(null);
-  const touchOriginRef = useRef<{ x: number; y: number } | null>(null);
+  /** Finger position and reticle position captured when a touch drag starts. */
+  const touchDragStartRef = useRef<{
+    clientX: number;
+    clientY: number;
+    target: LandingZonePoint;
+  } | null>(null);
   const touchSwipedRef = useRef(false);
   const touchDraggingRef = useRef(false);
   const dragProgressRef = useRef<number | null>(null);
@@ -211,41 +217,48 @@ export function LandingZoneOverlay({
   const handleTouchStart = useCallback(
     (event: ReactTouchEvent<HTMLDivElement>) => {
       const touch = event.touches[0];
-      touchOriginRef.current = touch
-        ? { x: touch.clientX, y: touch.clientY }
-        : null;
+      touchDragStartRef.current =
+        touch && target
+          ? { clientX: touch.clientX, clientY: touch.clientY, target }
+          : null;
       touchSwipedRef.current = false;
       touchDraggingRef.current = true;
       dragProgressRef.current = null;
     },
-    [],
+    [target],
   );
 
   const handleTouchMove = useCallback(
     (event: ReactTouchEvent<HTMLDivElement>) => {
-      const origin = touchOriginRef.current;
+      const start = touchDragStartRef.current;
       const touch = event.touches[0];
-      if (!origin || !touch) return;
+      if (!start || !touch || !mediaRect) return;
 
-      // The reticle follows the finger; the vertical component of the same
-      // gesture scrubs the flyover (handled by the panel's scroll forwarding).
-      const coords = coordsFromPointer(touch.clientX, touch.clientY);
-      if (coords) setHoverTarget(coords);
+      const dx = touch.clientX - start.clientX;
+      const dy = touch.clientY - start.clientY;
+
+      // Relative drag: the reticle keeps its offset from the finger, so it
+      // stays visible while you slide. The vertical component of the same
+      // gesture still scrubs (panel's scroll forwarding).
+      setHoverTarget({
+        x: clampPercent(start.target.x + (dx / mediaRect.width) * 100),
+        y: clampPercent(start.target.y + (dy / mediaRect.height) * 100),
+      });
 
       if (touchSwipedRef.current) return;
       if (
-        Math.abs(touch.clientX - origin.x) > SWIPE_SCRUB_THRESHOLD_PX ||
-        Math.abs(touch.clientY - origin.y) > SWIPE_SCRUB_THRESHOLD_PX
+        Math.abs(dx) > SWIPE_SCRUB_THRESHOLD_PX ||
+        Math.abs(dy) > SWIPE_SCRUB_THRESHOLD_PX
       ) {
         touchSwipedRef.current = true;
       }
     },
-    [coordsFromPointer],
+    [mediaRect],
   );
 
   const handleTouchEnd = useCallback(() => {
     touchDraggingRef.current = false;
-    touchOriginRef.current = null;
+    touchDragStartRef.current = null;
   }, []);
 
   const handleClick = useCallback(
