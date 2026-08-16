@@ -233,17 +233,19 @@ export function HoleSelectorOverlay({
     </button>
   );
 
-  // Landscape used to float a close toggle over the mosaic; hide the fixed
-  // button instead so tiles stay clear. Selecting a hole closes the grid.
-  const hideFixedToggleForLandscapeGrid =
-    isMobileLandscape && !isMobilePortrait && showGrid && !isFullscreen;
+  // Hide the fixed toggle when it would sit on top of the mosaic (landscape
+  // open grid, or portrait immersive grid). Selecting a hole closes the grid.
+  const hideFixedToggleOverGrid =
+    showGrid &&
+    ((isMobileLandscape && !isMobilePortrait) ||
+      (isMobilePortrait && isFullscreen));
 
   return (
     <>
       <div
         className={`course-hole-selector${embedded ? " course-hole-selector-embedded" : ""}${
           open ? " course-hole-selector-open" : ""
-        }${hideFixedToggleForLandscapeGrid ? " course-hole-selector-fixed-hidden" : ""}`}
+        }${hideFixedToggleOverGrid ? " course-hole-selector-fixed-hidden" : ""}`}
       >
         {toggleButton}
       </div>

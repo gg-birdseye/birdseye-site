@@ -3149,6 +3149,90 @@ html.course-hole-selector-grid-open .course-video-menu {
   white-space: nowrap;
 }
 
+.course-hole-graphic-panel-menu-flyout {
+  position: relative;
+  width: 100%;
+}
+
+.course-hole-graphic-panel-menu-flyout-trigger {
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.course-hole-graphic-panel-menu-flyout-arrow {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex-shrink: 0;
+  opacity: 0.75;
+}
+
+.course-hole-graphic-panel-menu-submenu {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 0.375rem);
+  z-index: 7;
+  display: flex;
+  min-width: 10.5rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.375rem;
+  padding: 0.375rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.75rem;
+  background: rgba(18, 16, 14, 0.96);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+
+.course-hole-graphic-panel-menu-tee-btn {
+  gap: 0.55rem;
+}
+
+.course-hole-graphic-panel-menu-tee-btn-active {
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.course-hole-graphic-panel-menu-tee-swatch {
+  display: block;
+  width: 0.7rem;
+  height: 0.7rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+
+.course-hole-graphic-panel-menu-tee-label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  line-height: 1.15;
+}
+
+.course-hole-graphic-panel-menu-tee-yards {
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* Right-side aerial column (mobile landscape): open the tee flyout leftward. */
+@media (orientation: landscape) and (max-height: 600px) {
+  .course-aerial-hole-view-open .course-hole-graphic-panel-menu-submenu {
+    left: auto;
+    right: calc(100% + 0.375rem);
+  }
+
+  .course-aerial-hole-view-open .course-hole-graphic-panel-menu-flyout-arrow {
+    transform: scaleX(-1);
+  }
+}
+
 .course-hole-graphic-camera-path-overlay {
   position: absolute;
   inset: 0.25rem;
@@ -3480,6 +3564,12 @@ html.course-hole-selector-grid-open .course-video-menu {
   z-index: 36;
 }
 
+/* Hide the fixed hole button when a full-bleed mosaic would cover it. */
+.course-hole-selector-fixed-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .course-hole-selector-btn {
   display: block;
   padding: 0;
@@ -3759,11 +3849,6 @@ html.course-hole-selector-grid-open .course-video-menu {
     display: none;
   }
 
-  .course-hole-selector-fixed-hidden {
-    visibility: hidden;
-    pointer-events: none;
-  }
-
   .course-hole-selector-panel--landscape {
     display: flex;
     flex-direction: column;
@@ -3817,11 +3902,6 @@ html.course-hole-selector-grid-open .course-video-menu {
   html.course-hole-selector-grid-open .course-hole-selector-panel--portrait-open
     .course-hole-selector-landscape-toggle-row {
     display: none;
-  }
-
-  html.course-hole-selector-grid-open .course-hole-selector-fixed-hidden {
-    visibility: visible;
-    pointer-events: auto;
   }
 
   html.course-hole-selector-grid-open .course-hole-selector-backdrop {

@@ -31,6 +31,7 @@ export type ScorecardChartTee = {
 
 export type ScorecardChartTeeOption = {
   index: number;
+  name?: string;
   totalYards: string;
   totalPar?: string;
   courseRating?: string;

@@ -738,6 +738,7 @@ export function ExampleCourseView({
       const demoTotalPar = demoParSum > 0 ? String(demoParSum) : undefined;
       return TEE_COLORS.map((color, index) => ({
         index,
+        name: ["Black", "Blue", "Gold", "White", "Green", "Gray"][index] ?? `Tee ${index + 1}`,
         totalYards: formatTotalYardsFromHoles(TEE_YARDAGES[index] ?? [], holeCount),
         totalPar: demoTotalPar,
         courseRating: demoRatings[index]?.courseRating,
@@ -750,6 +751,7 @@ export function ExampleCourseView({
       const resolved = scorecardTeeForGender(tee, gender);
       return {
         index,
+        name: tee.name?.trim() || `Tee ${index + 1}`,
         totalYards:
           resolved.totalYards?.trim() ||
           formatTotalYardsFromHoles(resolved.yardages, holeCount),
@@ -1169,6 +1171,8 @@ export function ExampleCourseView({
         cameraPath={cameraPathMap.get(activeHole)}
         landingZone={landingZoneMap.get(activeHole)}
         selectedTeeIndex={selectedTee}
+        teeOptions={teeOptions}
+        onTeeSelect={setSelectedTee}
         flyoverProgress={flyoverProgress}
         onPathSeek={goToFlyoverProgress}
         useDesktopTopBar={isDesktopLayout}

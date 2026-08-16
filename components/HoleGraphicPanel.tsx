@@ -16,6 +16,7 @@ import { PanelCloseButton } from "@/components/PanelCloseButton";
 import { CameraPathOverlay } from "@/components/CameraPathOverlay";
 import { LandingZoneOverlay } from "@/components/LandingZoneOverlay";
 import { HoleSelectorOverlay } from "@/components/HoleSelectorOverlay";
+import type { ScorecardChartTeeOption } from "@/components/ScorecardChartOverlay";
 
 type EmbeddedHoleSelectorProps = {
   holeCount: number;
@@ -35,6 +36,8 @@ type HoleGraphicPanelProps = {
   cameraPath?: CameraPathPoint[];
   landingZone?: LandingZoneData | null;
   selectedTeeIndex?: number;
+  teeOptions?: ScorecardChartTeeOption[];
+  onTeeSelect?: (index: number) => void;
   flyoverProgress?: number;
   onPathSeek?: (progress: number) => void;
   useDesktopTopBar?: boolean;
@@ -51,6 +54,8 @@ export function HoleGraphicPanel({
   cameraPath,
   landingZone,
   selectedTeeIndex = 0,
+  teeOptions = [],
+  onTeeSelect,
   flyoverProgress = 0,
   onPathSeek,
   useDesktopTopBar = false,
@@ -64,10 +69,12 @@ export function HoleGraphicPanel({
   const [trackerVisible, setTrackerVisible] = useState(true);
   const [rulerVisible, setRulerVisible] = useState(true);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [teeMenuOpen, setTeeMenuOpen] = useState(false);
   const [disclaimerOpen, setDisclaimerOpen] = useState(false);
   const hasCameraTrack = cameraPathHasTrack(cameraPath);
   const hasLandingZone = landingZoneIsReady(landingZone);
   const unifiedTool = hasLandingZone && hasCameraTrack;
+  const showTeeMenu = teeOptions.length > 1 && Boolean(onTeeSelect);
 
   useEffect(() => {
     setTrackerVisible(true);
@@ -78,9 +85,14 @@ export function HoleGraphicPanel({
   useEffect(() => {
     if (!open) {
       setActionsOpen(false);
+      setTeeMenuOpen(false);
       setDisclaimerOpen(false);
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!actionsOpen) setTeeMenuOpen(false);
+  }, [actionsOpen]);
 
   useEffect(() => {
     if (!actionsOpen) return;
@@ -88,10 +100,19 @@ export function HoleGraphicPanel({
     const onPointerDown = (event: PointerEvent) => {
       const menu = menuRef.current;
       if (!menu || !(event.target instanceof Node)) return;
-      if (!menu.contains(event.target)) setActionsOpen(false);
+      if (!menu.contains(event.target)) {
+        setActionsOpen(false);
+        setTeeMenuOpen(false);
+      }
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setActionsOpen(false);
+      if (event.key === "Escape") {
+        if (teeMenuOpen) {
+          setTeeMenuOpen(false);
+          return;
+        }
+        setActionsOpen(false);
+      }
     };
 
     document.addEventListener("pointerdown", onPointerDown);
@@ -100,7 +121,7 @@ export function HoleGraphicPanel({
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [actionsOpen]);
+  }, [actionsOpen, teeMenuOpen]);
 
   useEffect(() => {
     if (!disclaimerOpen) return;
@@ -156,6 +177,78 @@ export function HoleGraphicPanel({
     </button>
   ) : null;
 
+  const teeSelectItem = showTeeMenu ? (
+    <div
+      className={`course-hole-graphic-panel-menu-flyout${
+        teeMenuOpen ? " course-hole-graphic-panel-menu-flyout-open" : ""
+      }`}
+      onMouseEnter={() => setTeeMenuOpen(true)}
+      onMouseLeave={() => setTeeMenuOpen(false)}
+    >
+      <button
+        type="button"
+        className="course-aerial-mode-btn course-hole-graphic-panel-menu-flyout-trigger"
+        aria-expanded={teeMenuOpen}
+        aria-haspopup="menu"
+        onClick={() => setTeeMenuOpen((open) => !open)}
+      >
+        <span>Select Tee</span>
+        <svg
+          viewBox="0 0 24 24"
+          className="course-hole-graphic-panel-menu-flyout-arrow"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2.25}
+          aria-hidden
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" />
+        </svg>
+      </button>
+      {teeMenuOpen ? (
+        <div
+          className="course-hole-graphic-panel-menu-submenu"
+          role="menu"
+          aria-label="Select tee"
+        >
+          {teeOptions.map((tee) => {
+            const isSelected = tee.index === selectedTeeIndex;
+            const label = tee.name?.trim() || `Tee ${tee.index + 1}`;
+            return (
+              <button
+                key={tee.index}
+                type="button"
+                role="menuitemradio"
+                aria-checked={isSelected}
+                className={`course-aerial-mode-btn course-hole-graphic-panel-menu-tee-btn${
+                  isSelected ? " course-hole-graphic-panel-menu-tee-btn-active" : ""
+                }`}
+                onClick={() => {
+                  onTeeSelect?.(tee.index);
+                  setTeeMenuOpen(false);
+                  setActionsOpen(false);
+                }}
+              >
+                <span
+                  className="course-hole-graphic-panel-menu-tee-swatch"
+                  style={{ backgroundColor: tee.color }}
+                  aria-hidden
+                />
+                <span className="course-hole-graphic-panel-menu-tee-label">
+                  {label}
+                  {tee.totalYards ? (
+                    <span className="course-hole-graphic-panel-menu-tee-yards">
+                      {tee.totalYards} yds
+                    </span>
+                  ) : null}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  ) : null;
+
   const panelActionButtons = (
     <>
       <button
@@ -167,6 +260,7 @@ export function HoleGraphicPanel({
       </button>
       {trackerToggleButton}
       {rulerToggleButton}
+      {teeSelectItem}
     </>
   );
 
