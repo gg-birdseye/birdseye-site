@@ -146,6 +146,7 @@ export default async function CoursePage({ params }: Props) {
       />
       <Suspense fallback={<div className="min-h-screen bg-[#1a1814]" />}>
         <ExampleCourseView
+          courseSlug={course.slug}
           courseTitle={title}
           holeCount={course.holeCount ?? 18}
           holeVideos={holePlaybacks}

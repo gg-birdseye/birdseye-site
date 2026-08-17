@@ -34,6 +34,7 @@ import {
   type HolePlayback,
   type ScorecardGender,
 } from "@/lib/sanity/courses";
+import { trackCourseEvent } from "@/lib/analytics";
 import { holeLocalScrollProgress, holeStartProgress, holeToProgress, scrollTrackToProgress } from "@/lib/scrolly-video";
 import { resolveTeeColor } from "@/lib/constants/teeColors";
 import {
@@ -147,6 +148,8 @@ function furthestBackTeeIndex(
 }
 
 export type ExampleCourseViewProps = {
+  /** Course URL slug — used as the GA4 course_slug dimension. */
+  courseSlug?: string;
   courseTitle?: string;
   videoSrc?: string;
   fallbackVideoSrc?: string;
@@ -178,6 +181,7 @@ export type ExampleCourseViewProps = {
 };
 
 export function ExampleCourseView({
+  courseSlug,
   courseTitle = "Example Course",
   videoSrc = DEFAULT_VIDEO,
   fallbackVideoSrc,
@@ -196,6 +200,10 @@ export function ExampleCourseView({
   contact,
   holeDescriptions: holeDescriptionsProp,
 }: ExampleCourseViewProps = {}) {
+  const analyticsCourse = useMemo(
+    () => ({ slug: courseSlug, title: courseTitle }),
+    [courseSlug, courseTitle],
+  );
   const pagePanels = useMemo(
     () => ({
       aerial: pagePanelsProp?.aerial ?? DEFAULT_PAGE_PANELS.aerial,
@@ -577,14 +585,22 @@ export function ExampleCourseView({
   const goToHole = useCallback(
     (hole: number) => {
       const clamped = Math.min(holeCount, Math.max(0, hole));
+      const nextHole = Math.max(1, clamped);
+      const previousHole = activeHoleRef.current;
+      if (nextHole !== previousHole) {
+        trackCourseEvent("hole_select", analyticsCourse, {
+          hole_number: nextHole,
+          previous_hole: previousHole,
+        });
+      }
       setBarProgress(0);
       setFlyoverProgress(0);
       setScrollHintDismissed(false);
       setScrollHintKey((k) => k + 1);
       if (perHoleMode) {
         window.scrollTo({ top: 0, behavior: "instant" });
-        setSelectedHole(Math.max(1, clamped));
-        setScrubHole(Math.max(1, clamped));
+        setSelectedHole(nextHole);
+        setScrubHole(nextHole);
       } else {
         setScrubHole(clamped);
         scrollTrackToProgress(holeStartProgress(clamped, holeCount));
@@ -594,7 +610,15 @@ export function ExampleCourseView({
       else params.set("hole", String(clamped));
       router.replace(`${pathname}?${params.toString()}`, { scroll: false });
     },
-    [holeCount, pathname, perHoleMode, router, searchParams, setBarProgress],
+    [
+      analyticsCourse,
+      holeCount,
+      pathname,
+      perHoleMode,
+      router,
+      searchParams,
+      setBarProgress,
+    ],
   );
 
   useEffect(() => {
@@ -833,7 +857,20 @@ export function ExampleCourseView({
           if (id === "map") {
             setAerialViewMode("hole");
           }
-          setPanelOpen((p) => (p === id ? null : id));
+          setPanelOpen((p) => {
+            const next = p === id ? null : id;
+            if (next) {
+              trackCourseEvent("panel_open", analyticsCourse, {
+                panel: next === "map" ? "aerial" : next,
+              });
+              if (next === "map") {
+                trackCourseEvent("aerial_view_open", analyticsCourse, {
+                  aerial_mode: "hole",
+                });
+              }
+            }
+            return next;
+          });
         }}
         className={panelNavButtonClass(panelOpen === id)}
       >
@@ -842,13 +879,19 @@ export function ExampleCourseView({
     ));
 
     if (pagePanels.bookTeeTime && pagePanels.bookTeeTimeUrl) {
+      const bookingUrl = pagePanels.bookTeeTimeUrl;
       panelButtons.push(
         <a
           key="book-tee-time"
-          href={pagePanels.bookTeeTimeUrl}
+          href={bookingUrl}
           target="_blank"
           rel="noopener noreferrer"
           className={panelNavButtonClass(false)}
+          onClick={() => {
+            trackCourseEvent("book_tee_time_click", analyticsCourse, {
+              link_url: bookingUrl,
+            });
+          }}
         >
           Book Tee Time
         </a>,
@@ -856,7 +899,7 @@ export function ExampleCourseView({
     }
 
     return panelButtons;
-  }, [panelOpen, pagePanels, setAerialViewMode]);
+  }, [analyticsCourse, panelOpen, pagePanels, setAerialViewMode]);
 
   const handleHoleInfoOpenChange = useCallback((open: boolean) => {
     if (open) {
@@ -1155,7 +1198,12 @@ export function ExampleCourseView({
           goToHole(hole);
           setPanelOpen(null);
         }}
-        onEnterHoleView={() => setAerialViewMode("hole")}
+        onEnterHoleView={() => {
+          setAerialViewMode("hole");
+          trackCourseEvent("aerial_mode_change", analyticsCourse, {
+            aerial_mode: "hole",
+          });
+        }}
         onClose={() => setPanelOpen(null)}
       />
 
@@ -1176,7 +1224,12 @@ export function ExampleCourseView({
         flyoverProgress={flyoverProgress}
         onPathSeek={goToFlyoverProgress}
         useDesktopTopBar={isDesktopLayout}
-        onCourseView={() => setAerialViewMode("course")}
+        onCourseView={() => {
+          setAerialViewMode("course");
+          trackCourseEvent("aerial_mode_change", analyticsCourse, {
+            aerial_mode: "course",
+          });
+        }}
         onClose={() => setPanelOpen(null)}
       />
 
