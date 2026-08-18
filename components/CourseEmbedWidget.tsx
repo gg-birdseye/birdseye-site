@@ -8,6 +8,7 @@ import { cameraPathHasTrack } from "@/lib/camera-path";
 import {
   courseEmbedSnippet,
   courseFlyoverUrl,
+  EMBED_ENTRY_HOLE,
   type CourseEmbedHole,
 } from "@/lib/embed";
 import { landingZoneIsReady, resolveFurthestBackTee } from "@/lib/landing-zone";
@@ -46,7 +47,7 @@ export function CourseEmbedWidget({
   const [previewFailed, setPreviewFailed] = useState(false);
   const [disclaimerOpen, setDisclaimerOpen] = useState(false);
 
-  const flyoverHref = courseFlyoverUrl(courseSlug, hole.holeNumber);
+  const flyoverHref = courseFlyoverUrl(courseSlug, EMBED_ENTRY_HOLE);
   const hasCameraTrack = cameraPathHasTrack(hole.cameraPath);
   const hasLandingZone = landingZoneIsReady(hole.landingZone);
   const selectedTeeIndex = hole.landingZone
@@ -83,7 +84,8 @@ export function CourseEmbedWidget({
 
   const onCtaClick = useCallback(() => {
     trackCourseEvent("embed_cta_click", analyticsCourse, {
-      hole_number: hole.holeNumber,
+      hole_number: EMBED_ENTRY_HOLE,
+      preview_hole_number: hole.holeNumber,
     });
   }, [analyticsCourse, hole.holeNumber]);
 

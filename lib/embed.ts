@@ -5,6 +5,9 @@ import { absoluteUrl } from "@/lib/seo/site";
 /** Showcase hole for course-website embeds (Birch Creek hole 16). */
 export const EMBED_FEATURED_HOLE = 16;
 
+/** Hole users land on when they click through from the embed. */
+export const EMBED_ENTRY_HOLE = 1;
+
 export type CourseEmbedHole = {
   holeNumber: number;
   posterUrl: string;
