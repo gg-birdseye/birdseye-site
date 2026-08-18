@@ -1,10 +1,8 @@
 "use client";
 
 import Script from "next/script";
-import { usePathname } from "next/navigation";
-import { useEffect } from "react";
-
-const UTM_STORAGE_KEY = "birdseye_utm";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useEffect, useRef } from "react";
 
 type GoogleAnalyticsWithUtmProps = {
   gaId: string;
@@ -18,62 +16,37 @@ declare global {
   }
 }
 
+function pageLocation(): string {
+  return window.location.origin + window.location.pathname + window.location.search;
+}
+
+/**
+ * GA4 attributes sessions from `page_location` (the full URL, including utm_*).
+ * This init script sends that URL on the first hit, before any client navigation.
+ */
 function buildGaInitScript(gaId: string, debugMode: boolean): string {
   return `
 window.dataLayer = window.dataLayer || [];
 function gtag(){window.dataLayer.push(arguments);}
 window.gtag = gtag;
 gtag('js', new Date());
-
-(function () {
-  var params = new URLSearchParams(window.location.search);
-  var map = {
-    utm_source: "campaign_source",
-    utm_medium: "campaign_medium",
-    utm_campaign: "campaign_name",
-    utm_content: "campaign_content",
-    utm_term: "campaign_term",
-  };
-  var cfg = {};
-  var key;
-  for (key in map) {
-    var val = params.get(key);
-    if (val) cfg[map[key]] = val;
-  }
-  try {
-    if (Object.keys(cfg).length > 0) {
-      sessionStorage.setItem("${UTM_STORAGE_KEY}", JSON.stringify(cfg));
-    } else {
-      var stored = sessionStorage.getItem("${UTM_STORAGE_KEY}");
-      if (stored) cfg = JSON.parse(stored);
-    }
-  } catch (e) {}
-  ${debugMode ? "cfg.debug_mode = true;" : ""}
-  gtag("config", "${gaId}", cfg);
-})();`;
-}
-
-function readStoredCampaignConfig(): Record<string, string> {
-  try {
-    const stored = sessionStorage.getItem(UTM_STORAGE_KEY);
-    if (!stored) return {};
-    const parsed = JSON.parse(stored) as Record<string, string>;
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
+gtag('config', '${gaId}', {
+  page_location: window.location.href,
+  page_referrer: document.referrer${debugMode ? ",\n  debug_mode: true" : ""}
+});`;
 }
 
 /**
- * Loads GA4 and forwards utm_* query params into gtag campaign fields on the
- * first config call (before the initial page_view). Stored for the tab session
- * so client-side navigations keep the same attribution.
+ * Loads GA4 and always includes the query string on page_location so UTM
+ * campaign tags populate Session source / medium and Session campaign.
  */
 export function GoogleAnalyticsWithUtm({
   gaId,
   debugMode = false,
 }: GoogleAnalyticsWithUtmProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const initialPath = useRef<string | null>(null);
 
   useEffect(() => {
     performance.mark("mark_feature_usage", {
@@ -82,10 +55,19 @@ export function GoogleAnalyticsWithUtm({
   }, []);
 
   useEffect(() => {
-    const cfg = readStoredCampaignConfig();
-    if (Object.keys(cfg).length === 0 || typeof window.gtag !== "function") return;
-    window.gtag("config", gaId, cfg);
-  }, [gaId, pathname]);
+    const search = searchParams.toString();
+    const pathKey = search ? `${pathname}?${search}` : pathname;
+    if (initialPath.current === null) {
+      initialPath.current = pathKey;
+      return;
+    }
+    if (typeof window.gtag !== "function") return;
+    window.gtag("event", "page_view", {
+      page_location: pageLocation(),
+      page_path: pathKey,
+      page_title: document.title,
+    });
+  }, [pathname, searchParams]);
 
   return (
     <>

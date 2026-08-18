@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import { GoogleAnalyticsWithUtm } from "@/components/GoogleAnalyticsWithUtm";
 import { DM_Sans } from "next/font/google";
 import { getSiteUrl } from "@/lib/seo/site";
@@ -58,10 +59,12 @@ export default function RootLayout({
       <body className="font-sans">
         {children}
         {gaId ? (
-          <GoogleAnalyticsWithUtm
-            gaId={gaId}
-            debugMode={process.env.NODE_ENV !== "production"}
-          />
+          <Suspense fallback={null}>
+            <GoogleAnalyticsWithUtm
+              gaId={gaId}
+              debugMode={process.env.NODE_ENV !== "production"}
+            />
+          </Suspense>
         ) : null}
       </body>
     </html>
