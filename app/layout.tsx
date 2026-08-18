@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { GoogleAnalytics } from "@next/third-parties/google";
+import { GoogleAnalyticsWithUtm } from "@/components/GoogleAnalyticsWithUtm";
 import { DM_Sans } from "next/font/google";
 import { getSiteUrl } from "@/lib/seo/site";
 import "./globals.css";
@@ -57,7 +57,12 @@ export default function RootLayout({
     <html lang="en" className={dmSans.variable}>
       <body className="font-sans">
         {children}
-        {gaId ? <GoogleAnalytics gaId={gaId} /> : null}
+        {gaId ? (
+          <GoogleAnalyticsWithUtm
+            gaId={gaId}
+            debugMode={process.env.NODE_ENV !== "production"}
+          />
+        ) : null}
       </body>
     </html>
   );

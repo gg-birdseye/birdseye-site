@@ -1,5 +1,3 @@
-import { sendGAEvent } from "@next/third-parties/google";
-
 export type CourseAnalyticsParams = {
   course_slug?: string;
   course_title?: string;
@@ -24,7 +22,12 @@ export function trackEvent(
   }
 
   try {
-    sendGAEvent("event", eventName, cleaned);
+    if (typeof window.gtag === "function") {
+      window.gtag("event", eventName, cleaned);
+    } else {
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push(["event", eventName, cleaned]);
+    }
   } catch {
     // Ignore analytics failures — never block UI interactions.
   }
