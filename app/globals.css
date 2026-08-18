@@ -3927,3 +3927,42 @@ html.course-hole-selector-grid-open .course-video-menu {
     z-index: 100;
   }
 }
+
+/** Course-website iframe: keep the full hole graphic visible (no bottom crop). */
+.course-embed-widget {
+  --course-embed-cta-h: 3.25rem;
+}
+
+.course-embed-play-layer {
+  padding-bottom: calc(var(--course-embed-cta-h) + 0.75rem);
+}
+
+.course-embed-cta-layer {
+  background: linear-gradient(
+    to top,
+    rgba(10, 18, 14, 0.92) 0%,
+    rgba(10, 18, 14, 0.72) 55%,
+    transparent 100%
+  );
+}
+
+.course-embed-aerial-stage {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0.45rem 0.4rem calc(var(--course-embed-cta-h) + 0.5rem);
+  overflow: hidden;
+}
+
+.course-embed-aerial-stage .course-hole-graphic-panel-media {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}

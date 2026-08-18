@@ -30,3 +30,12 @@ export function muxPosterUrl(
   // Omit invalid fit values; `smart` is rejected by the Mux image API (use smartcrop if you need it).
   return `https://image.mux.com/${playbackId}/thumbnail.jpg?width=1920&time=${t}`;
 }
+
+/** Short looping WebP clip for embed widgets (no autoplay policy, small payload). */
+export function muxAnimatedPreviewUrl(
+  playbackId: string,
+  width = 960,
+): string {
+  const w = Math.min(1280, Math.max(320, Math.round(width)));
+  return `https://image.mux.com/${playbackId}/animated.webp?width=${w}&fps=12`;
+}

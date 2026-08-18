@@ -3,6 +3,7 @@ export const RESERVED_COURSE_SLUGS = new Set([
   "admin",
   "api",
   "courses",
+  "embed",
   "onboarding",
   "pricing",
   "refer",

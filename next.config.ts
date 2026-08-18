@@ -18,6 +18,20 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async headers() {
+    return [
+      {
+        // Course websites (e.g. Birch Creek) iframe this widget onto their own origin.
+        source: "/embed/:path*",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: "frame-ancestors *",
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
