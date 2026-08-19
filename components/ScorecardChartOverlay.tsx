@@ -460,6 +460,7 @@ export function ScorecardChartOverlay({
   allTeeYardages,
 }: ScorecardChartOverlayProps) {
   const [mode, setMode] = useState<ScorecardChartMode>("yardage");
+  const [hoveredHole, setHoveredHole] = useState<number | null>(null);
   /** Pinch/zoom is portrait-only — never on landscape or desktop. */
   const [enableChartZoom, setEnableChartZoom] = useState(false);
   const [isLandscapePhone, setIsLandscapePhone] = useState(false);
@@ -472,6 +473,14 @@ export function ScorecardChartOverlay({
   const zoomFrameRef = useRef<HTMLDivElement>(null);
   const chartBodyRef = useRef<HTMLDivElement>(null);
   const fitZoomRef = useRef(1);
+
+  useEffect(() => {
+    if (!open) setHoveredHole(null);
+  }, [open]);
+
+  useEffect(() => {
+    setHoveredHole(null);
+  }, [mode, selectedTee, scorecardGender]);
 
   useEffect(() => {
     const portraitMq = window.matchMedia(
@@ -860,6 +869,7 @@ export function ScorecardChartOverlay({
                       const x = Math.round(centerX - barWidth / 2);
                       const width = Math.round(barWidth);
                       const isActive = point.hole === activeHole;
+                      const isHovered = hoveredHole === point.hole;
                       const hasValue = point.value != null;
                       const holeLabelY = chartBaseline - holeLabelInset;
 
@@ -892,10 +902,32 @@ export function ScorecardChartOverlay({
                             onClick: () => onHoleSelect(point.hole),
                           }
                         : {};
+                      const showValueLabel = isActive || isHovered;
 
                       return (
-                        <g key={point.hole}>
+                        <g
+                          key={point.hole}
+                          onPointerEnter={(event) => {
+                            if (event.pointerType === "mouse") {
+                              setHoveredHole(point.hole);
+                            }
+                          }}
+                          onPointerLeave={(event) => {
+                            if (event.pointerType === "mouse") {
+                              setHoveredHole((current) =>
+                                current === point.hole ? null : current,
+                              );
+                            }
+                          }}
+                        >
                           <g {...holeSelectProps} shapeRendering="geometricPrecision">
+                            <rect
+                              x={x}
+                              y={margin.top}
+                              width={width}
+                              height={innerH}
+                              fill="transparent"
+                            />
                             {bodyHeight > 0 ? (
                               <path
                                 d={inactiveBarBodyPath(
@@ -920,7 +952,7 @@ export function ScorecardChartOverlay({
                               fill={accentColor}
                             />
                           </g>
-                          {isActive ? (
+                          {showValueLabel ? (
                             <text
                               x={centerX}
                               y={Math.max(margin.top + 20, barTop - 12)}
