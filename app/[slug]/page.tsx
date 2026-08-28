@@ -157,6 +157,15 @@ export default async function CoursePage({ params }: Props) {
           description: metaDescription,
         })}
       />
+      <CourseCrawlContent
+        title={title}
+        description={metaDescription}
+        holeCount={holeCount}
+        locationLabel={locationLabel}
+        contact={contact}
+        websiteUrl={course.websiteUrl}
+        holeDescriptions={holeDescriptions}
+      />
       <Suspense fallback={<div className="min-h-screen bg-[#1a1814]" />}>
         <ExampleCourseView
           courseSlug={course.slug}
@@ -177,15 +186,6 @@ export default async function CoursePage({ params }: Props) {
           holeDescriptions={holeDescriptions}
         />
       </Suspense>
-      <CourseCrawlContent
-        title={title}
-        description={metaDescription}
-        holeCount={holeCount}
-        locationLabel={locationLabel}
-        contact={contact}
-        websiteUrl={course.websiteUrl}
-        holeDescriptions={holeDescriptions}
-      />
     </>
   );
 }

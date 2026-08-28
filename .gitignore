@@ -36,3 +36,7 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# cursor agent skills (installed locally via npx skills add)
+.agents/
+skills-lock.json
