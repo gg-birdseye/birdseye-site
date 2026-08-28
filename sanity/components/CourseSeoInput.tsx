@@ -23,6 +23,7 @@ export function CourseSeoInput(props: ObjectInputProps) {
   const courseTitle = useFormValue(['title']) as string | undefined
   const city = useFormValue(['address', 'city']) as string | undefined
   const state = useFormValue(['address', 'state']) as string | undefined
+  const holeCount = useFormValue(['holeCount']) as number | undefined
 
   const suggested = useMemo(
     () =>
@@ -30,8 +31,9 @@ export function CourseSeoInput(props: ObjectInputProps) {
         title: courseTitle,
         city,
         state,
+        holeCount,
       }),
-    [courseTitle, city, state],
+    [courseTitle, city, holeCount, state],
   )
 
   const lastSuggestedRef = useRef(suggested)

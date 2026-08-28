@@ -65,7 +65,10 @@ export async function createSanityCourseStub(input: CreateCourseStubInput) {
     return existingId;
   }
 
-  const seo = buildCourseSeoDefaults({ title: input.title });
+  const seo = buildCourseSeoDefaults({
+    title: input.title,
+    holeCount: input.holeCount,
+  });
 
   const doc = await client.create({
     _type: "course",

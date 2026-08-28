@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { CourseUnavailable } from "@/components/CourseUnavailable";
+import { CourseCrawlContent } from "@/components/CourseCrawlContent";
 import { ExampleCourseView } from "@/components/ExampleCourseView";
 import { JsonLd } from "@/components/JsonLd";
 import { getCourseAccessBySlug } from "@/lib/billing/access";
@@ -22,7 +23,10 @@ import {
 } from "@/lib/sanity/courses";
 import { courseHoleGraphicsForPage } from "@/lib/sanity/course-hole-graphics-server";
 import { buildGolfCourseJsonLd } from "@/lib/seo/course-json-ld";
-import { resolveCourseSeo } from "@/lib/seo/course-meta";
+import {
+  formatCourseLocationLabel,
+  resolveCourseSeo,
+} from "@/lib/seo/course-meta";
 import { absoluteUrl } from "@/lib/seo/site";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -68,6 +72,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: course.title,
     city: course.address?.city,
     state: course.address?.state,
+    holeCount: course.holeCount,
     seo: course.seo,
   });
   const primary = coursePrimaryPlayback(course, 1);
@@ -125,6 +130,7 @@ export default async function CoursePage({ params }: Props) {
     title: course.title,
     city: course.address?.city,
     state: course.address?.state,
+    holeCount: course.holeCount,
     seo: course.seo,
   });
   const image = courseOgImage(
@@ -133,6 +139,13 @@ export default async function CoursePage({ params }: Props) {
     courseLogoSrc(course) ?? undefined,
   );
   const pageUrl = absoluteUrl(`/${slug}`);
+  const contact = courseContactInfo(course);
+  const holeDescriptions = courseHoleDescriptions(course);
+  const holeCount = course.holeCount ?? 18;
+  const locationLabel = formatCourseLocationLabel(
+    course.address?.city,
+    course.address?.state,
+  );
 
   return (
     <>
@@ -148,7 +161,7 @@ export default async function CoursePage({ params }: Props) {
         <ExampleCourseView
           courseSlug={course.slug}
           courseTitle={title}
-          holeCount={course.holeCount ?? 18}
+          holeCount={holeCount}
           holeVideos={holePlaybacks}
           videoSrc={primary.videoSrc}
           fallbackVideoSrc={primary.fallbackVideoSrc}
@@ -157,13 +170,22 @@ export default async function CoursePage({ params }: Props) {
           videoLogoSrc={courseLogoSrc(course) ?? undefined}
           videoLogoHref={course.websiteUrl?.trim() || undefined}
           pagePanels={coursePagePanels(course)}
-          scorecardData={courseScorecardData(course, course.holeCount ?? 18)}
+          scorecardData={courseScorecardData(course, holeCount)}
           aerialMap={courseAerialMap(course)}
           holeGraphics={holeGraphics}
-          contact={courseContactInfo(course)}
-          holeDescriptions={courseHoleDescriptions(course)}
+          contact={contact}
+          holeDescriptions={holeDescriptions}
         />
       </Suspense>
+      <CourseCrawlContent
+        title={title}
+        description={metaDescription}
+        holeCount={holeCount}
+        locationLabel={locationLabel}
+        contact={contact}
+        websiteUrl={course.websiteUrl}
+        holeDescriptions={holeDescriptions}
+      />
     </>
   );
 }
