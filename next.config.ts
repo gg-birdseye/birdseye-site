@@ -8,6 +8,9 @@ const nextConfig: NextConfig = {
     "/api/onboarding/*/contract/docusign": ["./docs/legal/contracts/**/*"],
     "/api/onboarding/*/contract/sync": ["./docs/legal/contracts/**/*"],
   },
+  outputFileTracingExcludes: {
+    "*": ["./remotion/**/*"],
+  },
   async redirects() {
     return [
       {
