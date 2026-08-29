@@ -10,6 +10,8 @@ export default function robots(): MetadataRoute.Robots {
         disallow: [
           "/admin",
           "/admin/",
+          "/email",
+          "/email/",
           "/embed/",
           "/onboarding/",
           "/pricing",
