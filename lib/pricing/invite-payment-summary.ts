@@ -20,12 +20,15 @@ export type PaymentSummaryBreakdownLine = {
 
 export type InvitePaymentSummaryInput = {
   plan: PlanInterval;
-  /** Gross subscription per billing period (after multi-course discount, before trade-out). */
+  /** Gross year-1 subscription per billing period (after multi-course discount, before trade-out). */
   subscriptionCents: number;
+  /** Gross year-2+ subscription per billing period (after multi-course discount, before trade-out). */
+  renewalSubscriptionCents?: number | null;
   quotedSubtotalCents?: number | null;
   multiCourseDiscountCents?: number;
   multiCourseDiscountPercent?: number;
   isCustomPrice?: boolean;
+  isCustomRenewal?: boolean;
   travelRequired: boolean;
   tradeOutElected: boolean;
   tradeOutCreditAmountRaw?: string | null;
@@ -35,8 +38,11 @@ export type InvitePaymentSummaryInput = {
 export type InvitePaymentSummary = {
   breakdownLines: PaymentSummaryBreakdownLine[];
   subscriptionCents: number;
+  renewalSubscriptionCents: number | null;
   tradeOutCreditCents: number;
   recurringChargeCents: number;
+  /** Net year-2+ charge after trade-out credit. */
+  renewalRecurringChargeCents: number | null;
   /** Annual plans: first 50% installment (subscription portion only). */
   annualFirstInstallmentCents: number | null;
   /** Annual plans: second 50% installment due on the 1st of the month after delivery. */
@@ -45,6 +51,7 @@ export type InvitePaymentSummary = {
   firstPaymentCents: number;
   secondPaymentCents: number | null;
   recurringChargeLabel: string;
+  renewalRecurringChargeLabel: string | null;
   firstPaymentLabel: string;
   secondPaymentLabel: string | null;
   tradeOutCreditPending: boolean;
@@ -104,6 +111,14 @@ export function computeInvitePaymentSummary(
     0,
     input.subscriptionCents - tradeOutCreditCents,
   );
+  const renewalSubscriptionCents =
+    input.renewalSubscriptionCents != null && input.renewalSubscriptionCents > 0
+      ? input.renewalSubscriptionCents
+      : null;
+  const renewalRecurringChargeCents =
+    renewalSubscriptionCents != null
+      ? Math.max(0, renewalSubscriptionCents - tradeOutCreditCents)
+      : null;
   const travelFeeCents = input.travelRequired ? TRAVEL_MOBILIZATION_FEE_CENTS : 0;
 
   let annualFirstInstallmentCents: number | null = null;
@@ -151,10 +166,19 @@ export function computeInvitePaymentSummary(
 
   breakdownLines.push({
     label: input.isCustomPrice
-      ? `Subscription (custom)${periodSuffix}`
-      : `Subscription (list)${periodSuffix}`,
+      ? `Year 1 subscription (custom)${periodSuffix}`
+      : `Year 1 subscription (list)${periodSuffix}`,
     amountCents: input.subscriptionCents,
   });
+
+  if (renewalSubscriptionCents != null) {
+    breakdownLines.push({
+      label: input.isCustomRenewal
+        ? `Year 2+ subscription (custom)${periodSuffix}`
+        : `Year 2+ subscription (list)${periodSuffix}`,
+      amountCents: renewalSubscriptionCents,
+    });
+  }
 
   if (input.tradeOutElected) {
     if (tradeOutCreditPending) {
@@ -181,7 +205,7 @@ export function computeInvitePaymentSummary(
     annualFirstInstallmentCents != null
   ) {
     breakdownLines.push({
-      label: "Annual subscription due (net)/yr",
+      label: "Year 1 subscription due (net)/yr",
       amountCents: recurringChargeCents,
     });
     breakdownLines.push({
@@ -201,14 +225,20 @@ export function computeInvitePaymentSummary(
   return {
     breakdownLines,
     subscriptionCents: input.subscriptionCents,
+    renewalSubscriptionCents,
     tradeOutCreditCents,
     recurringChargeCents,
+    renewalRecurringChargeCents,
     annualFirstInstallmentCents,
     annualSecondInstallmentCents,
     travelFeeCents,
     firstPaymentCents,
     secondPaymentCents,
     recurringChargeLabel: `${formatPrice(recurringChargeCents / 100)}${periodSuffix}`,
+    renewalRecurringChargeLabel:
+      renewalRecurringChargeCents != null
+        ? `${formatPrice(renewalRecurringChargeCents / 100)}${periodSuffix}`
+        : null,
     firstPaymentLabel: formatPrice(firstPaymentCents / 100),
     secondPaymentLabel:
       secondPaymentCents != null

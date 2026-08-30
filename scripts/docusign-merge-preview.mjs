@@ -54,6 +54,7 @@ const mergeFields = {
     "1. Pine Valley North — 18 holes — St. George, UT 84790\n" +
     "2. Pine Valley South — 9 holes — St. George, UT 84790",
   SubscriptionTotal: "$9,500.00",
+  RenewalTotal: "$3,600.00/yr",
   AmountDueToday: "$5,750.00",
   MultiCourseDiscount: "10%",
   TravelMobilizationFee: "$1,000.00",

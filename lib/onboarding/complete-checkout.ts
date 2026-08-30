@@ -1,7 +1,9 @@
 import type { Client } from "@/lib/db/schema";
 import { activateClient } from "@/lib/onboarding/activation";
 import { saveCheckoutCardForFutureUse } from "@/lib/onboarding/annual-billing";
-import { updateClientById } from "@/lib/onboarding/clients";
+import { scheduleMonthlyYear2PriceDrop } from "@/lib/onboarding/monthly-billing";
+import { getClientById, updateClientById } from "@/lib/onboarding/clients";
+import { resolvePlan } from "@/lib/onboarding/client-utils";
 import {
   getStripe,
   isStripeConfigured,
@@ -71,6 +73,23 @@ export async function completeCheckoutIfPaid(client: Client) {
         : client.stripeSubscriptionId,
     stripeCheckoutSessionId: session.id,
   });
+
+  const updated = (await getClientById(client.id)) ?? {
+    ...client,
+    stripeCustomerId: customerId ?? client.stripeCustomerId,
+    stripeSubscriptionId:
+      typeof session.subscription === "string"
+        ? session.subscription
+        : client.stripeSubscriptionId,
+  };
+
+  if (resolvePlan(updated) === "monthly") {
+    try {
+      await scheduleMonthlyYear2PriceDrop(updated);
+    } catch (error) {
+      console.error("Failed to schedule monthly Year 2+ price drop:", error);
+    }
+  }
 
   return activateClient(client.id);
 }

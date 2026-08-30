@@ -92,6 +92,7 @@ const REQUIRED_PLACEHOLDERS = [
   "SpecialAccessInstructions",
   "BillingPlan",
   "SubscriptionTotal",
+  "RenewalTotal",
   "AmountDueToday",
   "MultiCourseDiscount",
   "TravelMobilizationFee",

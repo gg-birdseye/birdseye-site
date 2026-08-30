@@ -57,9 +57,10 @@ export default async function PricingPage({ searchParams }: PricingPageProps) {
         <h1 className="text-3xl font-bold tracking-tight text-white md:text-4xl">
           PRICING
         </h1>
-        <p className="mt-3 max-w-2xl text-stone-400">
-          One plan, everything included. Give golfers a stunning preview of
-          your course before they ever tee off.
+        <p className="mt-3 max-w-2xl text-white">
+          One plan, everything included. Year 1 covers production and launch.
+          From year 2 on, you pay a lower rate for hosting, maintenance, and
+          your live course page.
         </p>
 
         <PricingSection holeCount={holeCount} />
@@ -68,7 +69,7 @@ export default async function PricingPage({ searchParams }: PricingPageProps) {
           <h2 className="text-xl font-bold tracking-tight text-white md:text-2xl">
             Everything included
           </h2>
-          <p className="mt-2 text-sm text-stone-400">
+          <p className="mt-2 text-sm text-white">
             Both plans come with the complete Birdseye experience for your
             course.
           </p>
@@ -77,7 +78,7 @@ export default async function PricingPage({ searchParams }: PricingPageProps) {
             {INCLUDED_FEATURES.map((feature) => (
               <li key={feature} className="flex items-start gap-3">
                 <CheckIcon />
-                <span className="text-sm leading-relaxed text-stone-200">
+                <span className="text-sm leading-relaxed text-white">
                   {feature}
                 </span>
               </li>
@@ -86,7 +87,7 @@ export default async function PricingPage({ searchParams }: PricingPageProps) {
         </div>
 
         <div className="mt-16 text-center">
-          <p className="mb-6 text-lg text-stone-300">
+          <p className="mb-6 text-lg text-white">
             Ready to bring your course to life?
           </p>
           <GetInTouchButton />

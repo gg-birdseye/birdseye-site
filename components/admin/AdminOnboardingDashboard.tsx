@@ -9,7 +9,7 @@ import {
   CONTRACT_VARIANT_LABELS,
   resolveContractVariant,
 } from "@/lib/onboarding/contract-variants";
-import { calculateMultiCourseQuote, isStandardHoleTier } from "@/lib/pricing/multi-course";
+import { calculateMultiCourseQuote, isStandardHoleTier, resolveRenewalSubscriptionCents } from "@/lib/pricing/multi-course";
 import {
   TRAVEL_DISTANCE_THRESHOLD_MILES,
   formatTravelMobilizationFeeLabel,
@@ -103,6 +103,7 @@ export function AdminOnboardingDashboard() {
     plan: "annual" as "annual" | "monthly",
     paymentMethod: "stripe" as "stripe" | "manual",
     customPriceDollars: "",
+    customRenewalPriceDollars: "",
     adminNotes: "",
     sendEmail: true,
     travelMobilizationFeeRequired: false,
@@ -156,17 +157,32 @@ export function AdminOnboardingDashboard() {
       customPriceCents = Math.round(parsed * 100);
     }
 
+    const customRenewalRaw = form.customRenewalPriceDollars.trim();
+    let customRenewalPriceCents: number | null = null;
+    if (customRenewalRaw) {
+      const parsed = Number(customRenewalRaw);
+      if (!Number.isFinite(parsed) || parsed < 0) return null;
+      customRenewalPriceCents = Math.round(parsed * 100);
+    }
+
     if (!quotePreview && customPriceCents == null) return null;
 
     const subscriptionCents = customPriceCents ?? quotePreview!.totalCents;
+    const renewalSubscriptionCents = resolveRenewalSubscriptionCents({
+      plan: form.plan,
+      courses: courseLines,
+      customRenewalPriceCents,
+    });
 
     return computeInvitePaymentSummary({
       plan: form.plan,
       subscriptionCents,
+      renewalSubscriptionCents,
       quotedSubtotalCents: quotePreview?.subtotalCents,
       multiCourseDiscountCents: quotePreview?.discountCents,
       multiCourseDiscountPercent: quotePreview?.discountPercent,
       isCustomPrice: customPriceCents != null,
+      isCustomRenewal: customRenewalPriceCents != null,
       travelRequired: form.travelMobilizationFeeRequired,
       tradeOutElected: form.tradeOutElected,
       tradeOutCreditAmountRaw: form.tradeOutCreditAmount,
@@ -180,6 +196,7 @@ export function AdminOnboardingDashboard() {
     form.courses,
     form.plan,
     form.customPriceDollars,
+    form.customRenewalPriceDollars,
     form.travelMobilizationFeeRequired,
     form.tradeOutElected,
     form.tradeOutCreditAmount,
@@ -215,6 +232,9 @@ export function AdminOnboardingDashboard() {
 
     const customPriceCents = form.customPriceDollars.trim()
       ? Math.round(Number(form.customPriceDollars) * 100)
+      : null;
+    const customRenewalPriceCents = form.customRenewalPriceDollars.trim()
+      ? Math.round(Number(form.customRenewalPriceDollars) * 100)
       : null;
 
     return formatScheduleAText(
@@ -265,6 +285,7 @@ export function AdminOnboardingDashboard() {
         customHoleCount: null,
         plan: form.plan,
         customPriceCents,
+        customRenewalPriceCents,
         paymentMethod: form.paymentMethod,
         onboardingStatus: "invited",
         billingStatus: "inactive",
@@ -474,9 +495,19 @@ export function AdminOnboardingDashboard() {
       if (customPriceDollars) {
         const parsed = Number(customPriceDollars);
         if (!Number.isFinite(parsed) || parsed < 0) {
-          throw new Error("Custom price must be zero or a positive number.");
+          throw new Error("Custom Year 1 price must be zero or a positive number.");
         }
         customPriceCents = Math.round(parsed * 100);
+      }
+
+      const customRenewalPriceDollars = form.customRenewalPriceDollars.trim();
+      let customRenewalPriceCents: number | null = null;
+      if (customRenewalPriceDollars) {
+        const parsed = Number(customRenewalPriceDollars);
+        if (!Number.isFinite(parsed) || parsed < 0) {
+          throw new Error("Custom Year 2+ price must be zero or a positive number.");
+        }
+        customRenewalPriceCents = Math.round(parsed * 100);
       }
 
       const response = await fetch("/api/admin/clients", {
@@ -494,6 +525,7 @@ export function AdminOnboardingDashboard() {
           plan: form.plan,
           paymentMethod: form.paymentMethod,
           customPriceCents,
+          customRenewalPriceCents,
           adminNotes: form.adminNotes,
           sendEmail: form.sendEmail,
           travelMobilizationFeeRequired: form.travelMobilizationFeeRequired,
@@ -527,6 +559,7 @@ export function AdminOnboardingDashboard() {
         courses: [emptyCourseRow()],
         adminNotes: "",
         customPriceDollars: "",
+        customRenewalPriceDollars: "",
         travelMobilizationFeeRequired: false,
         tradeOutElected: false,
         tradeOutCreditAmount: "",
@@ -699,7 +732,11 @@ export function AdminOnboardingDashboard() {
               <option value="manual">Manual (cash / check)</option>
             </select>
             <input
-              placeholder="Custom total price (USD, optional override)"
+              placeholder={
+                form.plan === "monthly"
+                  ? "Custom Year 1 rate (USD per month, optional)"
+                  : "Custom Year 1 rate (USD per year, optional)"
+              }
               value={form.customPriceDollars}
               onChange={(event) =>
                 setForm((current) => ({
@@ -709,7 +746,26 @@ export function AdminOnboardingDashboard() {
               }
               className={inputClassName}
             />
+            <input
+              placeholder={
+                form.plan === "monthly"
+                  ? "Custom Year 2+ rate (USD per month, optional)"
+                  : "Custom Year 2+ rate (USD per year, optional)"
+              }
+              value={form.customRenewalPriceDollars}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  customRenewalPriceDollars: event.target.value,
+                }))
+              }
+              className={inputClassName}
+            />
           </div>
+          <p className="text-xs text-stone-400">
+            Enter the amount charged each billing period, not a 12-month total.
+            Leave a field blank to use list price for that year.
+          </p>
 
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">

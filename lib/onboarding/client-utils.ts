@@ -9,7 +9,7 @@ import {
   type InvitePaymentSummary,
   type PaymentSummaryCourseLine,
 } from "@/lib/pricing/invite-payment-summary";
-import { calculateMultiCourseQuote } from "@/lib/pricing/multi-course";
+import { calculateMultiCourseQuote, resolveRenewalSubscriptionCents } from "@/lib/pricing/multi-course";
 import {
   resolveTravelMobilizationFeeCents,
 } from "@/lib/pricing/travel";
@@ -57,6 +57,38 @@ export function resolvePriceLabel(client: Client) {
   return formatPrice(cents / 100);
 }
 
+function courseLinesForClient(
+  client: ClientWithCourses | Client,
+): Parameters<typeof resolveRenewalSubscriptionCents>[0]["courses"] {
+  const withCourses = client as ClientWithCourses;
+  if (withCourses.courses?.length) {
+    return withCourses.courses.map((course) => ({
+      courseName: course.courseName,
+      holeCount: course.holeCount,
+      customHoleCount: course.customHoleCount,
+      customUnitPriceCents: course.customUnitPriceCents,
+    }));
+  }
+
+  return [
+    {
+      courseName: client.courseName ?? "Course",
+      holeCount: client.holeCount ?? 18,
+      customHoleCount: client.customHoleCount,
+    },
+  ];
+}
+
+export function resolveRenewalPriceCents(
+  client: ClientWithCourses | Client,
+): number | null {
+  return resolveRenewalSubscriptionCents({
+    plan: resolvePlan(client),
+    courses: courseLinesForClient(client),
+    customRenewalPriceCents: client.customRenewalPriceCents,
+  });
+}
+
 export function buildPaymentSummaryFromClient(
   client: ClientWithCourses | Client,
 ): InvitePaymentSummary | null {
@@ -87,10 +119,12 @@ export function buildPaymentSummaryFromClient(
   return computeInvitePaymentSummary({
     plan,
     subscriptionCents,
+    renewalSubscriptionCents: resolveRenewalPriceCents(client),
     quotedSubtotalCents: client.quotedSubtotalCents,
     multiCourseDiscountCents: client.multiCourseDiscountCents ?? 0,
     multiCourseDiscountPercent: client.multiCourseDiscountPercent ?? 0,
     isCustomPrice: client.customPriceCents != null,
+    isCustomRenewal: client.customRenewalPriceCents != null,
     travelRequired: client.travelMobilizationFeeRequired,
     tradeOutElected: client.tradeOutElected,
     tradeOutCreditAmountRaw: client.tradeOutCreditAmount,
@@ -148,6 +182,10 @@ export type BillingSummary = {
   travelFeeLabel?: string;
   checkoutTotalLabel?: string;
   secondPaymentLabel?: string;
+  /** Year 2+ list price before trade-out (Schedule A). */
+  listRenewalAmountLabel?: string;
+  /** Year 2+ net charge after trade-out (checkout / Stripe). */
+  renewalAmountLabel?: string;
 };
 
 export function resolveBillingSummary(
@@ -159,6 +197,13 @@ export function resolveBillingSummary(
   const paymentSummary = buildPaymentSummaryFromClient(client);
   const recurringCents = paymentSummary?.recurringChargeCents ?? listCents;
   const firstPaymentCents = paymentSummary?.firstPaymentCents ?? listCents;
+  const renewalListCents = resolveRenewalPriceCents(client);
+  const renewalNetCents =
+    paymentSummary?.renewalRecurringChargeCents ?? renewalListCents;
+  const renewalAmountLabel =
+    renewalNetCents != null ? formatPrice(renewalNetCents / 100) : undefined;
+  const listRenewalAmountLabel =
+    renewalListCents != null ? formatPrice(renewalListCents / 100) : undefined;
 
   const listSubscriptionAmountLabel = formatPrice(listCents / 100);
   const subscriptionAmountLabel = formatPrice(recurringCents / 100);
@@ -194,8 +239,8 @@ export function resolveBillingSummary(
       dueTodayLabel,
       frequencyLabel: `First month due today; subsequent payments due ${nextPaymentTiming}.`,
       checkoutNote: travelFeeRequired
-        ? `You will be charged ${checkoutTotalLabel} today (first month deposit plus ${travelFeeLabel} travel fee). Your next payment of ${subscriptionAmountLabel} is due ${nextPaymentTiming}, then each month thereafter.`
-        : `You will be charged ${subscriptionAmountLabel} today (first month deposit). Your next payment of ${subscriptionAmountLabel} is due ${nextPaymentTiming}, then each month thereafter.`,
+        ? `You will be charged ${checkoutTotalLabel} today (first month deposit plus ${travelFeeLabel} travel fee). Your next payment of ${subscriptionAmountLabel} is due ${nextPaymentTiming}, then monthly at the Year 1 rate through the Initial Term.${renewalAmountLabel ? ` From year 2 on, the rate is ${renewalAmountLabel} per month.` : ""}`
+        : `You will be charged ${subscriptionAmountLabel} today (first month deposit). Your next payment of ${subscriptionAmountLabel} is due ${nextPaymentTiming}, then monthly at the Year 1 rate through the Initial Term.${renewalAmountLabel ? ` From year 2 on, the rate is ${renewalAmountLabel} per month.` : ""}`,
       isCustomPrice,
       planLabel,
       subtotalLabel,
@@ -206,6 +251,8 @@ export function resolveBillingSummary(
       travelFeeStatusLabel,
       travelFeeLabel,
       checkoutTotalLabel,
+      listRenewalAmountLabel,
+      renewalAmountLabel,
     };
   }
 
@@ -223,8 +270,8 @@ export function resolveBillingSummary(
     dueTodayLabel,
     frequencyLabel: `Annual plan — 50% deposit due today, remaining 50% due ${RECURRING_PAYMENT_AFTER_DELIVERY_LABEL}.`,
     checkoutNote: travelFeeRequired
-      ? `You will be charged ${checkoutTotalLabel} today (50% annual deposit plus ${travelFeeLabel} travel fee). The remaining ${secondPaymentLabel ?? "balance"} is due ${RECURRING_PAYMENT_AFTER_DELIVERY_LABEL}. After year one, your subscription renews at ${subscriptionAmountLabel} per year.`
-      : `You will be charged ${checkoutTotalLabel} today (50% annual deposit). The remaining ${secondPaymentLabel ?? "balance"} is due ${RECURRING_PAYMENT_AFTER_DELIVERY_LABEL}. After year one, your subscription renews at ${subscriptionAmountLabel} per year.`,
+      ? `You will be charged ${checkoutTotalLabel} today (50% annual deposit plus ${travelFeeLabel} travel fee). The remaining ${secondPaymentLabel ?? "balance"} is due ${RECURRING_PAYMENT_AFTER_DELIVERY_LABEL}. After year one, your subscription renews at ${renewalAmountLabel ?? subscriptionAmountLabel} per year.`
+      : `You will be charged ${checkoutTotalLabel} today (50% annual deposit). The remaining ${secondPaymentLabel ?? "balance"} is due ${RECURRING_PAYMENT_AFTER_DELIVERY_LABEL}. After year one, your subscription renews at ${renewalAmountLabel ?? subscriptionAmountLabel} per year.`,
     isCustomPrice,
     planLabel,
     subtotalLabel,
@@ -236,6 +283,8 @@ export function resolveBillingSummary(
     travelFeeLabel,
     checkoutTotalLabel,
     secondPaymentLabel,
+    listRenewalAmountLabel,
+    renewalAmountLabel,
   };
 }
 

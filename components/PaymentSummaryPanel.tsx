@@ -78,15 +78,30 @@ export function PaymentSummaryPanel({
           <>
             <div className="flex items-baseline justify-between gap-4">
               <dt className="font-medium text-white">
-                {isAdmin ? "Recurring monthly charge" : "Then each month"}
+                {isAdmin ? "Year 1 monthly charge" : "Then each month (year 1)"}
               </dt>
               <dd className="text-base font-semibold text-birdseye-200">
                 {summary.recurringChargeLabel}
               </dd>
             </div>
             <p className="text-xs text-stone-500">
-              Recurring payments begin {RECURRING_PAYMENT_AFTER_DELIVERY_LABEL}.
+              Recurring Year 1 payments begin {RECURRING_PAYMENT_AFTER_DELIVERY_LABEL}.
             </p>
+            {summary.renewalRecurringChargeLabel ? (
+              <>
+                <div className="flex items-baseline justify-between gap-4">
+                  <dt className="font-medium text-white">
+                    {isAdmin ? "Year 2+ monthly charge" : "Year 2 and later (each month)"}
+                  </dt>
+                  <dd className="text-base font-semibold text-birdseye-200">
+                    {summary.renewalRecurringChargeLabel}
+                  </dd>
+                </div>
+                <p className="text-xs text-stone-500">
+                  After the 12-month Initial Term. Travel fees are not included.
+                </p>
+              </>
+            ) : null}
           </>
         ) : (
           <>
@@ -99,15 +114,15 @@ export function PaymentSummaryPanel({
               </dd>
             </div>
             <p className="text-xs text-stone-500">
-              Remaining 50% of the annual subscription — due{" "}
+              Remaining 50% of the Year 1 annual subscription — due{" "}
               {RECURRING_PAYMENT_AFTER_DELIVERY_LABEL}.
             </p>
             <div className="flex items-baseline justify-between gap-4">
               <dt className="font-medium text-white">
-                {isAdmin ? "Recurring annual charge" : "Year 2 and later (each year)"}
+                {isAdmin ? "Year 2+ annual charge" : "Year 2 and later (each year)"}
               </dt>
               <dd className="text-base font-semibold text-birdseye-200">
-                {summary.recurringChargeLabel}
+                {summary.renewalRecurringChargeLabel ?? summary.recurringChargeLabel}
               </dd>
             </div>
             <p className="text-xs text-stone-500">

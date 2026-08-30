@@ -64,6 +64,7 @@ export const clients = pgTable("clients", {
   customHoleCount: integer("custom_hole_count"),
   plan: text("plan").notNull().default("annual"),
   customPriceCents: integer("custom_price_cents"),
+  customRenewalPriceCents: integer("custom_renewal_price_cents"),
 
   paymentMethod: text("payment_method").notNull().default("stripe"),
 

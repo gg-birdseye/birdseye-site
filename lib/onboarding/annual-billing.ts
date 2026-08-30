@@ -1,5 +1,6 @@
 import type { Client } from "@/lib/db/schema";
-import { updateClientById } from "@/lib/onboarding/clients";
+import type Stripe from "stripe";
+import { updateClientById, getClientByIdWithCourses } from "@/lib/onboarding/clients";
 import {
   buildPaymentSummaryFromClient,
   resolveAccountLabel,
@@ -126,11 +127,13 @@ export async function scheduleAnnualBillingAfterDelivery(client: Client) {
 
   const deliveredAt = client.deliveredAt ?? new Date();
   const billingStartsAt = firstOfMonthAfterDelivery(deliveredAt);
-  const summary = buildPaymentSummaryFromClient(client);
+  const billedClient = (await getClientByIdWithCourses(client.id)) ?? client;
+  const summary = buildPaymentSummaryFromClient(billedClient);
   const secondInstallmentCents = summary?.annualSecondInstallmentCents;
-  const fullAnnualCents = summary?.recurringChargeCents;
+  const year1AnnualCents = summary?.recurringChargeCents;
+  const renewalCents = summary?.renewalRecurringChargeCents;
 
-  if (!secondInstallmentCents || !fullAnnualCents) {
+  if (!secondInstallmentCents || !year1AnnualCents) {
     throw new Error("No annual price is configured for this client.");
   }
 
@@ -175,23 +178,45 @@ export async function scheduleAnnualBillingAfterDelivery(client: Client) {
     },
   });
 
-  const renewalPrice = await stripe.prices.create({
-    currency: "usd",
-    unit_amount: fullAnnualCents,
-    recurring: { interval: "year" },
-    product_data: {
-      name: `Birdseye annual subscription — ${accountLabel}`,
+  const phases: Stripe.SubscriptionScheduleCreateParams.Phase[] = [
+    {
+      items: [{ price: remainingPrice.id, quantity: 1 }],
+      duration: { interval: "year", interval_count: 1 },
+      proration_behavior: "none",
+      metadata: {
+        clientId: client.id,
+        purpose: "annual_second_50",
+      },
     },
-    metadata: {
-      clientId: client.id,
-      installment: "annual_renewal_100",
-    },
-  });
+  ];
+
+  if (renewalCents && renewalCents > 0) {
+    const renewalPrice = await stripe.prices.create({
+      currency: "usd",
+      unit_amount: renewalCents,
+      recurring: { interval: "year" },
+      product_data: {
+        name: `Birdseye annual subscription — ${accountLabel}`,
+      },
+      metadata: {
+        clientId: client.id,
+        installment: "annual_renewal_year2",
+      },
+    });
+    phases.push({
+      items: [{ price: renewalPrice.id, quantity: 1 }],
+      proration_behavior: "none",
+      metadata: {
+        clientId: client.id,
+        purpose: "annual_renewal_year2",
+      },
+    });
+  }
 
   const schedule = await stripe.subscriptionSchedules.create({
     customer: client.stripeCustomerId,
     start_date: startUnix,
-    end_behavior: "release",
+    end_behavior: renewalCents && renewalCents > 0 ? "release" : "cancel",
     default_settings: {
       default_payment_method: paymentMethodId,
       collection_method: "charge_automatically",
@@ -200,25 +225,7 @@ export async function scheduleAnnualBillingAfterDelivery(client: Client) {
       clientId: client.id,
       purpose: "annual_after_delivery",
     },
-    phases: [
-      {
-        items: [{ price: remainingPrice.id, quantity: 1 }],
-        duration: { interval: "year", interval_count: 1 },
-        proration_behavior: "none",
-        metadata: {
-          clientId: client.id,
-          purpose: "annual_second_50",
-        },
-      },
-      {
-        items: [{ price: renewalPrice.id, quantity: 1 }],
-        proration_behavior: "none",
-        metadata: {
-          clientId: client.id,
-          purpose: "annual_renewal_100",
-        },
-      },
-    ],
+    phases,
   });
 
   const subscriptionId =

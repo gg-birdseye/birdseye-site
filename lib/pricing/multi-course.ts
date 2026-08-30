@@ -1,7 +1,7 @@
 import {
-  PRICING_BY_HOLES,
   formatPrice,
-  type HoleCount,
+  getListPriceCents,
+  type PricingTerm,
 } from "@/lib/pricing";
 import type { PlanInterval } from "@/lib/db/schema";
 
@@ -48,20 +48,21 @@ export function resolveLineHoleCount(line: CourseLineInput): number {
 export function getTierPriceCents(
   holeCount: number,
   plan: PlanInterval,
+  term: PricingTerm = "year1",
 ): number | null {
-  if (![9, 18, 27].includes(holeCount)) return null;
-  const tier = PRICING_BY_HOLES[holeCount as Exclude<HoleCount, "other">];
-  return plan === "monthly" ? tier.monthly * 100 : tier.yearly * 100;
+  return getListPriceCents(holeCount, plan, term);
 }
 
 export function getLineUnitPriceCents(
   line: CourseLineInput,
   plan: PlanInterval,
+  term: PricingTerm = "year1",
 ): number | null {
-  if (line.customUnitPriceCents != null && line.customUnitPriceCents >= 0) {
+  const holeCount = resolveLineHoleCount(line);
+  if (term === "year1" && line.customUnitPriceCents != null && line.customUnitPriceCents >= 0) {
     return line.customUnitPriceCents;
   }
-  return getTierPriceCents(resolveLineHoleCount(line), plan);
+  return getTierPriceCents(holeCount, plan, term);
 }
 
 export function isStandardHoleTier(holeCount: number) {
@@ -71,13 +72,14 @@ export function isStandardHoleTier(holeCount: number) {
 export function calculateMultiCourseQuote(
   courses: CourseLineInput[],
   plan: PlanInterval,
+  term: PricingTerm = "year1",
 ): MultiCourseQuote | null {
   if (courses.length === 0) return null;
 
   const pricedLines: CourseLinePricing[] = [];
   for (const line of courses) {
     const resolvedHoleCount = resolveLineHoleCount(line);
-    const unitPriceCents = getLineUnitPriceCents(line, plan);
+    const unitPriceCents = getLineUnitPriceCents(line, plan, term);
     if (unitPriceCents == null) return null;
 
     pricedLines.push({
@@ -108,4 +110,20 @@ export function calculateMultiCourseQuote(
     totalLabel: formatPrice(totalCents / 100),
     plan,
   };
+}
+
+/** Year 2+ package total: locked custom renewal, otherwise list (with multi-course discount). */
+export function resolveRenewalSubscriptionCents(options: {
+  plan: PlanInterval;
+  courses: CourseLineInput[];
+  customRenewalPriceCents?: number | null;
+}): number | null {
+  if (options.customRenewalPriceCents != null) {
+    return options.customRenewalPriceCents;
+  }
+
+  return (
+    calculateMultiCourseQuote(options.courses, options.plan, "year2")?.totalCents ??
+    null
+  );
 }

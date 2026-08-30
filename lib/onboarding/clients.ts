@@ -82,6 +82,7 @@ type CreateInviteInput = {
   plan: PlanInterval;
   paymentMethod: PaymentMethod;
   customPriceCents?: number | null;
+  customRenewalPriceCents?: number | null;
   adminNotes?: string;
   travelMobilizationFeeRequired?: boolean;
   tradeOutElected?: boolean;
@@ -164,6 +165,7 @@ export async function createClientInvite(input: CreateInviteInput) {
     plan,
     paymentMethod: input.paymentMethod,
     customPriceCents: input.customPriceCents ?? null,
+    customRenewalPriceCents: input.customRenewalPriceCents ?? null,
     quotedSubtotalCents: quote?.subtotalCents ?? input.customPriceCents ?? null,
     multiCourseDiscountCents: quote?.discountCents ?? 0,
     multiCourseDiscountPercent: quote?.discountPercent ?? 0,

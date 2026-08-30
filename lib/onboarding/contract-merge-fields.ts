@@ -87,6 +87,9 @@ export function buildContractMergeFields(client: ClientWithCourses): ContractMer
     ScheduleA_Text: formatScheduleAText(client, courses, plan),
     ScheduleA_Courses: formatScheduleACoursesBlock(client, courses),
     SubscriptionTotal: billing?.listSubscriptionAmountLabel ?? "",
+    RenewalTotal: billing?.listRenewalAmountLabel
+      ? `${billing.listRenewalAmountLabel}${plan === "monthly" ? "/mo" : "/yr"}`
+      : "",
     AmountDueToday: billing?.amountLabel ?? "",
     MultiCourseDiscount:
       client.multiCourseDiscountCents && client.multiCourseDiscountCents > 0
@@ -140,6 +143,7 @@ export const DOCUSIGN_MERGE_FIELD_NAMES = [
   "ScheduleA_Text",
   "ScheduleA_Courses",
   "SubscriptionTotal",
+  "RenewalTotal",
   "AmountDueToday",
   "MultiCourseDiscount",
   "TravelMobilizationFee",

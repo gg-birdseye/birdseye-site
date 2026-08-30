@@ -19,7 +19,7 @@ export function PricingSection({ holeCount }: PricingSectionProps) {
   return (
     <>
       <div className="relative z-10 mt-10">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-stone-400">
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white">
           Number of holes
         </p>
         <div
@@ -41,7 +41,7 @@ export function PricingSection({ holeCount }: PricingSectionProps) {
                 className={`rounded-full px-5 py-2 text-sm font-semibold transition ${
                   isSelected
                     ? "bg-birdseye-500 text-white shadow-sm"
-                    : "text-stone-300 hover:bg-white/10 hover:text-white"
+                    : "text-white hover:bg-white/10"
                 }`}
               >
                 {option.label}
@@ -54,10 +54,15 @@ export function PricingSection({ holeCount }: PricingSectionProps) {
       <div className="relative z-10 mt-8 grid gap-6 md:grid-cols-2">
         <PricingCard
           name="Monthly"
-          price={isCustom ? "Contact for custom pricing" : formatPrice(tier!.monthly)}
+          year1Price={isCustom ? null : formatPrice(tier!.monthly)}
+          year2Price={isCustom ? null : formatPrice(tier!.year2.monthly)}
           cadence={isCustom ? null : "/mo"}
           billing={isCustom ? "Tailored to your course" : "Billed monthly"}
-          note={isCustom ? "We'll build a plan that fits" : "Cancel anytime"}
+          note={
+            isCustom
+              ? "We'll build a plan that fits"
+              : "Year 1 at the launch rate, then the lower rate from year 2 on"
+          }
           highlighted={false}
           badge={null}
           isCustom={isCustom}
@@ -65,10 +70,15 @@ export function PricingSection({ holeCount }: PricingSectionProps) {
 
         <PricingCard
           name="Annual"
-          price={isCustom ? "Contact for custom pricing" : formatPrice(tier!.yearly)}
+          year1Price={isCustom ? null : formatPrice(tier!.yearly)}
+          year2Price={isCustom ? null : formatPrice(tier!.year2.yearly)}
           cadence={isCustom ? null : "/yr"}
           billing={isCustom ? "Tailored to your course" : "Billed annually"}
-          note={isCustom ? "We'll build a plan that fits" : "Best value for your course"}
+          note={
+            isCustom
+              ? "We'll build a plan that fits"
+              : "Best value for your course — 2 months free each year"
+          }
           highlighted={!isCustom}
           badge={
             isCustom || savings <= 0
@@ -84,7 +94,8 @@ export function PricingSection({ holeCount }: PricingSectionProps) {
 
 type PricingCardProps = {
   name: string;
-  price: string;
+  year1Price: string | null;
+  year2Price: string | null;
   cadence: string | null;
   billing: string;
   note: string;
@@ -93,9 +104,40 @@ type PricingCardProps = {
   isCustom: boolean;
 };
 
+function PriceRow({
+  label,
+  price,
+  cadence,
+  featured,
+}: {
+  label: string;
+  price: string;
+  cadence: string;
+  featured: boolean;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white">
+        {label}
+      </p>
+      <p className="mt-1 flex items-baseline gap-1">
+        <span
+          className={`font-bold tracking-tight text-white ${
+            featured ? "text-5xl" : "text-3xl"
+          }`}
+        >
+          {price}
+        </span>
+        <span className="text-lg font-medium text-white">{cadence}</span>
+      </p>
+    </div>
+  );
+}
+
 function PricingCard({
   name,
-  price,
+  year1Price,
+  year2Price,
   cadence,
   billing,
   note,
@@ -117,27 +159,35 @@ function PricingCard({
         </span>
       ) : null}
 
-      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-stone-400">
+      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-birdseye-400">
         {name}
       </p>
 
-      <p
-        className={`mt-4 flex items-baseline gap-1 ${isCustom ? "flex-col items-start gap-2" : ""}`}
-      >
-        <span
-          className={`font-bold tracking-tight text-white ${
-            isCustom ? "text-2xl leading-snug md:text-3xl" : "text-5xl"
-          }`}
-        >
-          {price}
-        </span>
-        {cadence ? (
-          <span className="text-lg font-medium text-stone-400">{cadence}</span>
-        ) : null}
-      </p>
+      {isCustom || !year1Price || !year2Price || !cadence ? (
+        <p className="mt-4 flex flex-col items-start gap-2">
+          <span className="text-2xl font-bold leading-snug tracking-tight text-white md:text-3xl">
+            Contact for custom pricing
+          </span>
+        </p>
+      ) : (
+        <div className="mt-5 space-y-5">
+          <PriceRow
+            label="Year 1"
+            price={year1Price}
+            cadence={cadence}
+            featured
+          />
+          <PriceRow
+            label="Year 2+"
+            price={year2Price}
+            cadence={cadence}
+            featured={false}
+          />
+        </div>
+      )}
 
-      <p className="mt-4 text-sm text-stone-300">{billing}</p>
-      <p className="mt-1 text-sm text-stone-500">{note}</p>
+      <p className="mt-5 text-sm text-white">{billing}</p>
+      <p className="mt-1 text-sm text-white">{note}</p>
     </div>
   );
 }

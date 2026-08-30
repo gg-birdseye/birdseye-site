@@ -85,6 +85,7 @@ type CreateInviteBody = {
   plan?: PlanInterval;
   paymentMethod?: PaymentMethod;
   customPriceCents?: number | null;
+  customRenewalPriceCents?: number | null;
   adminNotes?: string;
   sendEmail?: boolean;
   travelMobilizationFeeRequired?: boolean;
@@ -165,11 +166,25 @@ export async function POST(request: Request) {
   if (body.customPriceCents != null) {
     if (!Number.isFinite(body.customPriceCents) || body.customPriceCents < 0) {
       return NextResponse.json(
-        { error: "Custom price must be zero or a positive number." },
+        { error: "Custom Year 1 price must be zero or a positive number." },
         { status: 400 },
       );
     }
     customPriceCents = Math.round(body.customPriceCents);
+  }
+
+  let customRenewalPriceCents: number | null = null;
+  if (body.customRenewalPriceCents != null) {
+    if (
+      !Number.isFinite(body.customRenewalPriceCents) ||
+      body.customRenewalPriceCents < 0
+    ) {
+      return NextResponse.json(
+        { error: "Custom Year 2+ price must be zero or a positive number." },
+        { status: 400 },
+      );
+    }
+    customRenewalPriceCents = Math.round(body.customRenewalPriceCents);
   }
 
   const tradeOut = parseTradeOutFields(body);
@@ -194,6 +209,7 @@ export async function POST(request: Request) {
       plan: body.plan ?? "annual",
       paymentMethod: body.paymentMethod ?? "stripe",
       customPriceCents,
+      customRenewalPriceCents,
       adminNotes: body.adminNotes,
       travelMobilizationFeeRequired: body.travelMobilizationFeeRequired ?? false,
       ...tradeOut,

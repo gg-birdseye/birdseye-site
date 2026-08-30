@@ -4,6 +4,9 @@ import {
   formatTravelMobilizationFeeLabel,
   resolveTravelMobilizationFeeCents,
 } from "@/lib/pricing/travel";
+import {
+  resolveRenewalPriceCents,
+} from "@/lib/onboarding/client-utils";
 import type { Client, ClientCourse } from "@/lib/db/schema";
 import type { PlanInterval } from "@/lib/db/schema";
 
@@ -133,6 +136,10 @@ export function formatScheduleAText(
             (client.quotedSubtotalCents - client.multiCourseDiscountCents) / 100,
           )
         : subtotal;
+  const periodSuffix = plan === "monthly" ? "/mo" : "/yr";
+  const renewalCents = resolveRenewalPriceCents(client);
+  const renewal =
+    renewalCents != null ? `${formatPrice(renewalCents / 100)}${periodSuffix}` : null;
 
   return [
     `Organization: ${org}`,
@@ -145,7 +152,11 @@ export function formatScheduleAText(
     `Billing interval: ${plan === "monthly" ? "Monthly" : "Annual"}`,
     `Subtotal: ${subtotal}`,
     ...(discount ? [`Multi-course discount: ${discount}`] : []),
-    `Total subscription fee: ${total}`,
+    `Year 1 (Initial Term) subscription fee: ${total}${plan === "monthly" ? "/mo" : "/yr"}`,
+    ...(renewal
+      ? [`Year 2 and later (renewal) subscription fee: ${renewal}`]
+      : []),
+    `After Initial Term: Subscription renews at the Year 2 and later rate above, per MSA Article 7.5, unless Client cancels at least 30 days before the next renewal date.`,
     ...(options?.includeTravelFee !== false &&
     resolveTravelMobilizationFeeCents(client) > 0
       ? [

@@ -140,8 +140,9 @@ async function getDocuSignSession() {
       "Unable to authenticate with DocuSign.";
     throw new Error(
       `${base} (DocuSign OAuth host: ${oauthHost}, DOCUSIGN_ENV=${envLabel}). ` +
-        `Confirm production User ID + RSA private key from account.docusign.com Apps and Keys, ` +
-        `and that DOCUSIGN_ENV=production when using live credentials.`,
+        (envLabel === "production"
+          ? "Confirm the User ID and RSA private key from account.docusign.com → Apps and Keys match this Integration Key."
+          : "Local is using the demo host. Use User ID, Account ID, Integration Key, and RSA private key from account-d.docusign.com → Apps and Keys — not production credentials. Or set DOCUSIGN_ENV=production to use live DocuSign."),
     );
   }
 
