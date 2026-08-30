@@ -1,14 +1,10 @@
-import { Resend } from "resend";
 import type { Referral } from "@/lib/db/schema";
 import {
   GIFT_CARD_LABELS,
   REFERRAL_VERIFY_WINDOW_DAYS,
 } from "@/lib/referrals/domain";
 import { formatUsPhoneFromDigits } from "@/lib/format-phone";
-
-const resend = process.env.RESEND_API_KEY
-  ? new Resend(process.env.RESEND_API_KEY)
-  : null;
+import { sendEmail } from "@/lib/email/send";
 
 function escapeHtml(value: string) {
   return value
@@ -18,26 +14,14 @@ function escapeHtml(value: string) {
     .replace(/"/g, "&quot;");
 }
 
-async function sendEmail(options: {
+async function sendReferralEmail(options: {
   to: string | string[];
   subject: string;
   html: string;
   replyTo?: string;
 }) {
-  const from = process.env.RESEND_FROM_EMAIL;
-  if (!resend || !from) {
-    console.warn("Email not configured; skipping send.", options.subject);
-    return;
-  }
-
   try {
-    await resend.emails.send({
-      from,
-      to: options.to,
-      subject: options.subject,
-      html: options.html,
-      replyTo: options.replyTo,
-    });
+    await sendEmail(options);
   } catch (error) {
     console.error("Failed to send referral email:", error);
   }
@@ -54,7 +38,7 @@ export async function sendReferralReceivedEmails(referral: Referral) {
     GIFT_CARD_LABELS[referral.giftCardChoice] ?? referral.giftCardChoice,
   );
 
-  await sendEmail({
+  await sendReferralEmail({
     to: referral.referrerEmail,
     subject: `Referral received — ${referral.courseName}`,
     html: `
@@ -72,7 +56,7 @@ export async function sendReferralReceivedEmails(referral: Referral) {
   });
 
   if (adminEmail) {
-    await sendEmail({
+    await sendReferralEmail({
       to: adminEmail,
       replyTo: referral.referrerEmail,
       subject: `New course referral — ${referral.courseName}`,
@@ -107,7 +91,7 @@ export async function sendReferralReleasedEmail(referral: Referral) {
         <p>You're welcome to resubmit with a current, reachable club contact.</p>
       `;
 
-  await sendEmail({
+  await sendReferralEmail({
     to: referral.referrerEmail,
     subject: `Referral released — ${referral.courseName}`,
     html: `
@@ -123,7 +107,7 @@ export async function sendReferralWonEmail(referral: Referral) {
     GIFT_CARD_LABELS[referral.giftCardChoice] ?? referral.giftCardChoice,
   );
 
-  await sendEmail({
+  await sendReferralEmail({
     to: referral.referrerEmail,
     replyTo: process.env.CONTACT_TO_EMAIL,
     subject: `Your referral signed on — ${referral.courseName}`,

@@ -1,9 +1,11 @@
 import {
   boolean,
+  date,
   integer,
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -142,6 +144,26 @@ export const clientCourses = pgTable("client_courses", {
     .defaultNow(),
 });
 
+export const clientBillingNotifications = pgTable(
+  "client_billing_notifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    targetDate: date("target_date", { mode: "string" }).notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("client_billing_notifications_unique").on(
+      table.clientId,
+      table.kind,
+      table.targetDate,
+    ),
+  ],
+);
+
 export const referrals = pgTable("referrals", {
   id: uuid("id").primaryKey().defaultRandom(),
 
@@ -198,6 +220,8 @@ export const leads = pgTable("leads", {
 
 export type Client = typeof clients.$inferSelect;
 export type NewClient = typeof clients.$inferInsert;
+export type ClientBillingNotification =
+  typeof clientBillingNotifications.$inferSelect;
 export type ClientCourse = typeof clientCourses.$inferSelect;
 export type NewClientCourse = typeof clientCourses.$inferInsert;
 export type ClientWithCourses = Client & { courses: ClientCourse[] };

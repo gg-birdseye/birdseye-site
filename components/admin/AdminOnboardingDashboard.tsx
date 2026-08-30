@@ -19,6 +19,11 @@ import {
 } from "@/components/PaymentSummaryPanel";
 import { computeInvitePaymentSummary } from "@/lib/pricing/invite-payment-summary";
 import { useZipCityStateAutofill } from "@/lib/geo/use-zip-city-state-autofill";
+import {
+  formatYmdLong,
+  nextAnnualRenewalYmd,
+  todayYmd,
+} from "@/lib/billing/notification-dates";
 
 const inputClassName =
   "w-full rounded-lg border border-white/10 bg-black/30 px-4 py-3 text-white";
@@ -85,6 +90,11 @@ function courseRowToLineInput(row: CourseFormRow) {
   };
 }
 
+function nextRenewalLabel(billingStartsAt: string | Date) {
+  const renewal = nextAnnualRenewalYmd(new Date(billingStartsAt), todayYmd());
+  return renewal ? formatYmdLong(renewal) : null;
+}
+
 export function AdminOnboardingDashboard() {
   const [clients, setClients] = useState<ClientWithCourses[]>([]);
   const [loading, setLoading] = useState(true);
@@ -124,6 +134,8 @@ export function AdminOnboardingDashboard() {
   const [travelDistanceMessage, setTravelDistanceMessage] = useState("");
   const [travelBeyondThreshold, setTravelBeyondThreshold] = useState(false);
   const [travelDistanceLoading, setTravelDistanceLoading] = useState(false);
+  const [billingNotifyBusy, setBillingNotifyBusy] = useState(false);
+  const [billingNotifyResult, setBillingNotifyResult] = useState("");
 
   const quotePreview = useMemo(() => {
     const courseLines = form.courses
@@ -421,6 +433,61 @@ export function AdminOnboardingDashboard() {
   useEffect(() => {
     void loadClients();
   }, [loadClients]);
+
+  async function runBillingNotifications(dryRun: boolean) {
+    if (!dryRun) {
+      const confirmed = window.confirm(
+        "Send due billing reminder emails to clients now?\n\nUse Preview first if you want to see who would be emailed.",
+      );
+      if (!confirmed) return;
+    }
+
+    setBillingNotifyBusy(true);
+    setBillingNotifyResult("");
+    setError("");
+    try {
+      const response = await fetch("/api/admin/billing-notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun }),
+      });
+      const result = await parseJsonResponse<{
+        error?: string;
+        today?: string;
+        sent?: Array<{ accountLabel: string; kind: string; targetDate: string }>;
+        watch?: Array<{ accountLabel?: string; reason: string }>;
+        errors?: Array<{ accountLabel?: string; reason: string }>;
+        skipped?: Array<{ reason: string }>;
+      }>(response);
+      if (!response.ok) {
+        throw new Error(result.error ?? "Unable to run billing notifications.");
+      }
+
+      const lines = [
+        `${dryRun ? "Preview" : "Sent"} for ${result.today ?? "today"}.`,
+        `Due now: ${result.sent?.length ?? 0}`,
+        `Already sent: ${result.skipped?.length ?? 0}`,
+        `Needs attention: ${result.watch?.length ?? 0}`,
+        `Errors: ${result.errors?.length ?? 0}`,
+      ];
+      for (const item of result.sent ?? []) {
+        lines.push(`• ${item.accountLabel} — ${item.kind} (${item.targetDate})`);
+      }
+      for (const item of result.watch ?? []) {
+        lines.push(`• Watch: ${item.accountLabel ?? "Unknown"} — ${item.reason}`);
+      }
+      for (const item of result.errors ?? []) {
+        lines.push(`• Error: ${item.accountLabel ?? "Unknown"} — ${item.reason}`);
+      }
+      setBillingNotifyResult(lines.join("\n"));
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unable to run billing notifications.",
+      );
+    } finally {
+      setBillingNotifyBusy(false);
+    }
+  }
 
   function updateCourse(index: number, patch: Partial<CourseFormRow>) {
     setForm((current) => ({
@@ -1151,16 +1218,39 @@ export function AdminOnboardingDashboard() {
       <section className="rounded-2xl border border-white/10 bg-white/5 p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-bold text-white">Clients</h2>
-          {!loading ? (
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => void loadClients()}
-              className="rounded-full border border-white/20 px-3 py-1.5 text-xs text-stone-200"
+              disabled={billingNotifyBusy}
+              onClick={() => void runBillingNotifications(true)}
+              className="rounded-full border border-white/20 px-3 py-1.5 text-xs text-stone-200 disabled:opacity-60"
             >
-              Refresh
+              {billingNotifyBusy ? "Checking..." : "Preview billing emails"}
             </button>
-          ) : null}
+            <button
+              type="button"
+              disabled={billingNotifyBusy}
+              onClick={() => void runBillingNotifications(false)}
+              className="rounded-full border border-white/20 px-3 py-1.5 text-xs text-stone-200 disabled:opacity-60"
+            >
+              Send due billing emails
+            </button>
+            {!loading ? (
+              <button
+                type="button"
+                onClick={() => void loadClients()}
+                className="rounded-full border border-white/20 px-3 py-1.5 text-xs text-stone-200"
+              >
+                Refresh
+              </button>
+            ) : null}
+          </div>
         </div>
+        {billingNotifyResult ? (
+          <pre className="mt-4 overflow-x-auto whitespace-pre-wrap rounded-lg border border-white/10 bg-black/30 px-4 py-3 text-xs text-stone-300">
+            {billingNotifyResult}
+          </pre>
+        ) : null}
         {loading ? (
           <p className="mt-4 text-stone-400">Loading clients...</p>
         ) : loadError ? (
@@ -1242,6 +1332,12 @@ export function AdminOnboardingDashboard() {
                           {client.stripeSubscriptionScheduleId
                             ? " · Stripe schedule created"
                             : ""}
+                        </p>
+                      ) : null}
+                      {client.plan !== "monthly" && client.annualBillingStartsAt ? (
+                        <p className="mt-1 text-sm text-stone-500">
+                          Next Year 2+ renewal {nextRenewalLabel(client.annualBillingStartsAt)} ·
+                          reminder ~31 days before
                         </p>
                       ) : null}
                       {needsSanity ? (

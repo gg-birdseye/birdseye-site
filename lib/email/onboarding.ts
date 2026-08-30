@@ -1,10 +1,6 @@
-import { Resend } from "resend";
 import type { Client } from "@/lib/db/schema";
 import { resolvePriceLabel } from "@/lib/onboarding/client-utils";
-
-const resend = process.env.RESEND_API_KEY
-  ? new Resend(process.env.RESEND_API_KEY)
-  : null;
+import { sendEmail } from "@/lib/email/send";
 
 function escapeHtml(value: string) {
   return value
@@ -12,31 +8,6 @@ function escapeHtml(value: string) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
-}
-
-async function sendEmail(options: {
-  to: string | string[];
-  subject: string;
-  html: string;
-}) {
-  const from = process.env.RESEND_FROM_EMAIL;
-  if (!resend || !from) {
-    console.warn("Email not configured; skipping send.", options.subject);
-    return;
-  }
-
-  const { error } = await resend.emails.send({
-    from,
-    to: options.to,
-    subject: options.subject,
-    html: options.html,
-  });
-
-  if (error) {
-    throw new Error(
-      `Resend failed (${options.subject}): ${error.message ?? JSON.stringify(error)}`,
-    );
-  }
 }
 
 export async function sendOnboardingActivationEmails(client: Client) {

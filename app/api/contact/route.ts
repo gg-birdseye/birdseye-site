@@ -1,12 +1,8 @@
 import { NextResponse } from "next/server";
-import { Resend } from "resend";
 import { isDatabaseConfigured } from "@/lib/db";
 import { getDb, leads } from "@/lib/db";
 import { isRecaptchaConfigured, verifyRecaptchaToken } from "@/lib/recaptcha";
-
-const resend = process.env.RESEND_API_KEY
-  ? new Resend(process.env.RESEND_API_KEY)
-  : null;
+import { isEmailConfigured, sendEmail } from "@/lib/email/send";
 
 type ContactPayload = {
   name?: string;
@@ -91,52 +87,51 @@ export async function POST(request: Request) {
     }
   }
 
-  const from = process.env.RESEND_FROM_EMAIL;
   const to = process.env.CONTACT_TO_EMAIL;
 
-  if (!resend || !from || !to) {
+  if (!isEmailConfigured() || !to) {
     return NextResponse.json(
       { error: "Contact form is not configured." },
       { status: 503 },
     );
   }
 
-  const { error } = await resend.emails.send({
-    from,
-    to,
-    replyTo: email,
-    subject: `Birdseye inquiry from ${name}`,
-    text: [
-      `Name: ${name}`,
-      organization ? `Golf course or company: ${organization}` : null,
-      `Email: ${email}`,
-      referralSource ? `How did you hear about us?: ${referralSource}` : null,
-      "",
-      message,
-    ]
-      .filter((line): line is string => line != null)
-      .join("\n"),
-    html: [
-      "<p><strong>Name:</strong> " + escapeHtml(name) + "</p>",
-      organization
-        ? "<p><strong>Golf course or company:</strong> " +
-          escapeHtml(organization) +
-          "</p>"
-        : null,
-      "<p><strong>Email:</strong> " + escapeHtml(email) + "</p>",
-      referralSource
-        ? "<p><strong>How did you hear about us?:</strong> " +
-          escapeHtml(referralSource) +
-          "</p>"
-        : null,
-      "<p><strong>Message:</strong></p>",
-      "<p>" + escapeHtml(message).replace(/\n/g, "<br />") + "</p>",
-    ]
-      .filter((line): line is string => line != null)
-      .join("\n"),
-  });
-
-  if (error) {
+  try {
+    await sendEmail({
+      to,
+      replyTo: email,
+      required: true,
+      subject: `Birdseye inquiry from ${name}`,
+      text: [
+        `Name: ${name}`,
+        organization ? `Golf course or company: ${organization}` : null,
+        `Email: ${email}`,
+        referralSource ? `How did you hear about us?: ${referralSource}` : null,
+        "",
+        message,
+      ]
+        .filter((line): line is string => line != null)
+        .join("\n"),
+      html: [
+        "<p><strong>Name:</strong> " + escapeHtml(name) + "</p>",
+        organization
+          ? "<p><strong>Golf course or company:</strong> " +
+            escapeHtml(organization) +
+            "</p>"
+          : null,
+        "<p><strong>Email:</strong> " + escapeHtml(email) + "</p>",
+        referralSource
+          ? "<p><strong>How did you hear about us?:</strong> " +
+            escapeHtml(referralSource) +
+            "</p>"
+          : null,
+        "<p><strong>Message:</strong></p>",
+        "<p>" + escapeHtml(message).replace(/\n/g, "<br />") + "</p>",
+      ]
+        .filter((line): line is string => line != null)
+        .join("\n"),
+    });
+  } catch (error) {
     console.error("Resend error:", error);
     return NextResponse.json(
       { error: "Failed to send message. Please try again." },
