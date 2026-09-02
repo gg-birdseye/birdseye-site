@@ -1,6 +1,11 @@
 import type { Client } from "@/lib/db/schema";
-import { resolvePriceLabel } from "@/lib/onboarding/client-utils";
 import { sendEmail } from "@/lib/email/send";
+import {
+  resolveBillingSummary,
+  resolvePlan,
+  resolvePriceLabel,
+} from "@/lib/onboarding/client-utils";
+import { getClientByIdWithCourses } from "@/lib/onboarding/clients";
 
 function escapeHtml(value: string) {
   return value
@@ -10,20 +15,42 @@ function escapeHtml(value: string) {
     .replace(/"/g, "&quot;");
 }
 
-export async function sendOnboardingActivationEmails(client: Client) {
-  const adminEmail = process.env.CONTACT_TO_EMAIL;
-  const courseName = escapeHtml(client.courseName ?? "Course");
-  const contactName = escapeHtml(client.contactName ?? "there");
-  const price = escapeHtml(resolvePriceLabel(client));
+function planSummaryHtml(client: Client) {
+  const billing = resolveBillingSummary(client);
+  const period = resolvePlan(client) === "monthly" ? "per month" : "per year";
+  const year1 = escapeHtml(billing?.subscriptionAmountLabel ?? resolvePriceLabel(client));
+  const year2 = billing?.renewalAmountLabel
+    ? escapeHtml(billing.renewalAmountLabel)
+    : null;
 
-  if (client.contactEmail) {
+  if (!year2) {
+    return `<p>Plan: <strong>${year1} ${period}</strong></p>`;
+  }
+
+  return `
+    <p>Your plan:</p>
+    <ul>
+      <li>Year 1: <strong>${year1} ${period}</strong></li>
+      <li>Year 2 and later: <strong>${year2} ${period}</strong></li>
+    </ul>
+  `;
+}
+
+export async function sendOnboardingActivationEmails(client: Client) {
+  const billed = (await getClientByIdWithCourses(client.id)) ?? client;
+  const adminEmail = process.env.CONTACT_TO_EMAIL;
+  const courseName = escapeHtml(billed.courseName ?? "Course");
+  const contactName = escapeHtml(billed.contactName ?? "there");
+  const planHtml = planSummaryHtml(billed);
+
+  if (billed.contactEmail) {
     await sendEmail({
-      to: client.contactEmail,
+      to: billed.contactEmail,
       subject: "Welcome to Birdseye — you're all set",
       html: `
         <p>Hi ${contactName},</p>
         <p>Your Birdseye account for <strong>${courseName}</strong> is now active.</p>
-        <p>Plan: <strong>${price}</strong></p>
+        ${planHtml}
         <p>Next steps:</p>
         <ul>
           <li>Share your course logo (SVG or PNG on transparent background)</li>
@@ -39,12 +66,13 @@ export async function sendOnboardingActivationEmails(client: Client) {
   if (adminEmail) {
     await sendEmail({
       to: adminEmail,
-      subject: `New Birdseye client activated — ${client.courseName ?? "Course"}`,
+      subject: `New Birdseye client activated — ${billed.courseName ?? "Course"}`,
       html: `
         <p><strong>${courseName}</strong> is now active.</p>
-        <p>Contact: ${escapeHtml(client.contactName ?? "—")} (${escapeHtml(client.contactEmail ?? "—")})</p>
-        <p>Course slug: ${escapeHtml(client.courseSlug ?? "pending")}</p>
-        <p>Sanity course ID: ${escapeHtml(client.sanityCourseId ?? "pending")}</p>
+        ${planHtml}
+        <p>Contact: ${escapeHtml(billed.contactName ?? "—")} (${escapeHtml(billed.contactEmail ?? "—")})</p>
+        <p>Course slug: ${escapeHtml(billed.courseSlug ?? "pending")}</p>
+        <p>Sanity course ID: ${escapeHtml(billed.sanityCourseId ?? "pending")}</p>
         <p>Finish setup in Sanity Studio when ready.</p>
       `,
     });
