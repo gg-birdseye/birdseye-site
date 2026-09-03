@@ -144,9 +144,8 @@ function listSection(
 
 export function buildCourseAnalyticsReportHtml(
   report: CourseAnalyticsReport,
-  greetingName?: string | null,
+  _greetingName?: string | null,
 ): string {
-  const name = greetingName?.trim() || "there";
   const logoUrl = "https://www.birdseye.golf/email/logo.png";
 
   return `<!DOCTYPE html>
@@ -178,7 +177,7 @@ export function buildCourseAnalyticsReportHtml(
                 ${escapeHtml(report.courseTitle)}
               </h1>
               <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.55;color:${MUTED};">
-                Hi ${escapeHtml(name)}, this is how golfers used your Birdseye course preview — flyovers, scorecard, aerial map, and tee-time clicks.
+                This is how golfers used your Birdseye course page for the dates listed above.
               </p>
             </td>
           </tr>
@@ -191,8 +190,8 @@ export function buildCourseAnalyticsReportHtml(
                   ${scorecard("Sessions", formatCount(report.sessions), "Total visits. One golfer may visit more than once.")}
                 </tr>
                 <tr>
-                  ${scorecard("Avg. time exploring", formatEngagement(report.avgEngagementSeconds), "Average time spent on flyovers, scorecard, and maps.")}
-                  ${scorecard("Book tee time clicks", formatCount(report.bookTeeTimeClicks), "Clicks that sent golfers to your booking page.")}
+                  ${scorecard("Avg. time exploring", formatEngagement(report.avgEngagementSeconds), "Average time spent on all course content.")}
+                  ${scorecard("Book tee time clicks", formatCount(report.bookTeeTimeClicks), "Clicks that sent golfers to your tee sheet.")}
                 </tr>
               </table>
             </td>
@@ -200,7 +199,7 @@ export function buildCourseAnalyticsReportHtml(
           <tr><td style="height:20px;line-height:20px;font-size:20px;">&nbsp;</td></tr>
           <tr>
             <td style="background:${CARD};border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:24px 22px;">
-              ${sectionTitle("Preview traffic over time", "Daily visitors to your Birdseye page. Spikes often follow emails, social posts, or QR scans.")}
+              ${sectionTitle("Preview traffic over time", "Daily visitors to your Birdseye course page. Spikes often follow emails, social posts, or QR scans.")}
               ${dailyChart(report.daily)}
             </td>
           </tr>
@@ -215,7 +214,7 @@ export function buildCourseAnalyticsReportHtml(
                         <td style="padding:22px 20px;">
                           ${listSection(
                             "How they found you",
-                            "Where golfers came from before opening your preview.",
+                            "Where golfers came from before opening your course page.",
                             report.sources,
                             "No traffic sources recorded yet.",
                           )}
@@ -281,7 +280,7 @@ export function buildCourseAnalyticsReportHtml(
           <tr>
             <td align="center" style="padding:0 8px 8px;">
               <a href="${escapeHtml(report.pageUrl)}" style="display:inline-block;padding:14px 28px;border-radius:999px;border:1px solid rgba(255,255,255,0.22);background:rgba(255,255,255,0.08);font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;color:${TEXT};text-decoration:none;">
-                Open your live preview
+                Open your course page
               </a>
             </td>
           </tr>
