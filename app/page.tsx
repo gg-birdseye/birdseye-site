@@ -33,7 +33,12 @@ export const metadata: Metadata = {
   },
 };
 
-export default function Home() {
+type HomeProps = {
+  searchParams: Promise<{ contact?: string }>;
+};
+
+export default async function Home({ searchParams }: HomeProps) {
+  const { contact } = await searchParams;
   const videoSrc = LANDING_INTRO_VIDEO_SRC;
   const poster = LANDING_INTRO_POSTER;
   const siteUrl = getSiteUrl();
@@ -87,7 +92,7 @@ export default function Home() {
             </Link>
 
             <div className="mt-16">
-              <GetInTouchButton />
+              <GetInTouchButton defaultOpen={contact === "1"} />
             </div>
           </div>
         </section>
