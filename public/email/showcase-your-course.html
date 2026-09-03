@@ -30,6 +30,9 @@
     img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
     body { margin: 0; padding: 0; width: 100% !important; background: #000000; }
     a { color: #f4efe6; }
+    @media (prefers-color-scheme: dark) {
+      .ready-copy, .ready-copy span { color: #f4efe6 !important; -webkit-text-fill-color: #f4efe6 !important; }
+    }
     @media only screen and (max-width: 620px) {
       .email-container { width: 100% !important; }
       .px { padding-left: 28px !important; padding-right: 28px !important; }
@@ -130,10 +133,10 @@
           </tr>
 
           <tr>
-            <td align="center" class="px" style="padding:36px 56px 0 56px; background-color:#000000;">
-              <p style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:1.7; color:#ffffff;">
-                Ready to put your course on Birdseye?<br />
-                Reply to this email — we'll take it from there.
+            <td align="center" class="px" bgcolor="#000000" style="padding:36px 56px 0 56px; background-color:#000000;">
+              <p class="ready-copy" style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:1.7; color:#f4efe6; -webkit-text-fill-color:#f4efe6;">
+                <span style="color:#f4efe6; -webkit-text-fill-color:#f4efe6;">Ready to put your course on Birdseye?</span><br />
+                <span style="color:#f4efe6; -webkit-text-fill-color:#f4efe6;">Reply to this email — we'll take it from there.</span>
               </p>
             </td>
           </tr>
