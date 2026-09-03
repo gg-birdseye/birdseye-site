@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   transpilePackages: ["sanity-plugin-mux-input"],
+  serverExternalPackages: ["@google-analytics/data", "google-gax"],
   // Contract .docx files are read at runtime for DocuSign — include them only
   // on the routes that load templates (not every serverless function).
   outputFileTracingIncludes: {

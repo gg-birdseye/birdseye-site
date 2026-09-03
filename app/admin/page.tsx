@@ -22,6 +22,12 @@ const adminSections = [
     description:
       "Review referrals, verify contacts, release claims, and track rewards.",
   },
+  {
+    href: "/admin/analytics",
+    title: "Course analytics",
+    description:
+      "Preview branded Google Analytics reports and email them to courses.",
+  },
 ];
 
 export default async function AdminPage() {
@@ -49,7 +55,7 @@ export default async function AdminPage() {
           Choose an area to manage.
         </p>
 
-        <div className="mt-8 grid gap-4 md:grid-cols-2">
+        <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {adminSections.map((section) => (
             <Link
               key={section.href}
