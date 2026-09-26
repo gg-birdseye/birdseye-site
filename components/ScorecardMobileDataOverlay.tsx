@@ -3,7 +3,7 @@
 import { PanelCloseButton } from "@/components/PanelCloseButton";
 import type { ScorecardChartTeeOption } from "@/components/ScorecardChartOverlay";
 import { useForwardScrollToVideo } from "@/hooks/useForwardScrollToVideo";
-import { teeSelectedLabelColor } from "@/lib/constants/teeColors";
+import { teeSelectedLabelColor, teeSplitBackground } from "@/lib/constants/teeColors";
 import { useRef } from "react";
 
 export type ScorecardMobileTee = {
@@ -146,6 +146,20 @@ export function ScorecardMobileDataOverlay({
               const selectedLabelColor = isSelected
                 ? teeSelectedLabelColor(option.color)
                 : undefined;
+              const selectedStyle = isSelected
+                ? {
+                    ...(option.colorSecondary
+                      ? {
+                          backgroundImage: teeSplitBackground(
+                            option.color,
+                            option.colorSecondary,
+                          ),
+                        }
+                      : { backgroundColor: option.color }),
+                    borderColor: option.color,
+                    color: selectedLabelColor,
+                  }
+                : undefined;
               return (
                 <button
                   key={option.index}
@@ -156,15 +170,7 @@ export function ScorecardMobileDataOverlay({
                       ? "course-scorecard-data-tee-btn-active"
                       : "text-white/55 hover:text-white/85"
                   }`}
-                  style={
-                    isSelected
-                      ? {
-                          backgroundColor: option.color,
-                          borderColor: option.color,
-                          color: selectedLabelColor,
-                        }
-                      : undefined
-                  }
+                  style={selectedStyle}
                   aria-label={
                     optionRating
                       ? `${option.totalYards} yards, rating ${optionRating}`

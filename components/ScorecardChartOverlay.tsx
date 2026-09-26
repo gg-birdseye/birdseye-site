@@ -1,7 +1,7 @@
 "use client";
 
 import { PanelCloseButton } from "@/components/PanelCloseButton";
-import { teeSelectedLabelColor } from "@/lib/constants/teeColors";
+import { teeSelectedLabelColor, teeSplitBackground } from "@/lib/constants/teeColors";
 import {
   useEffect,
   useMemo,
@@ -37,6 +37,8 @@ export type ScorecardChartTeeOption = {
   courseRating?: string;
   slopeRating?: string;
   color: string;
+  /** Higher tee # color for combo split backgrounds. */
+  colorSecondary?: string;
 };
 
 export type ScorecardChartGender = "men" | "women";
@@ -1075,6 +1077,20 @@ export function ScorecardChartOverlay({
                   const selectedLabelColor = isSelected
                     ? teeSelectedLabelColor(option.color)
                     : undefined;
+                  const selectedStyle = isSelected
+                    ? {
+                        ...(option.colorSecondary
+                          ? {
+                              backgroundImage: teeSplitBackground(
+                                option.color,
+                                option.colorSecondary,
+                              ),
+                            }
+                          : { backgroundColor: option.color }),
+                        borderColor: option.color,
+                        color: selectedLabelColor,
+                      }
+                    : undefined;
                   return (
                     <button
                       key={option.index}
@@ -1085,15 +1101,7 @@ export function ScorecardChartOverlay({
                           ? "course-scorecard-chart-tee-btn-active"
                           : "text-white/55 hover:text-white/85"
                       }`}
-                      style={
-                        isSelected
-                          ? {
-                              backgroundColor: option.color,
-                              borderColor: option.color,
-                              color: selectedLabelColor,
-                            }
-                          : undefined
-                      }
+                      style={selectedStyle}
                       aria-label={
                         ratingLabel
                           ? `${option.totalYards} yards, rating ${ratingLabel}`

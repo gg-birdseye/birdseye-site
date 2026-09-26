@@ -133,11 +133,20 @@ export type HoleScorecardDoc = {
   handicap?: string | null;
 };
 
+export type ScorecardComboAvailableFor = "both" | "men" | "women";
+
 export type ScorecardTeeSetDoc = {
   name?: string | null;
   totalYards?: string | null;
   totalPar?: ScorecardGenderValuesDoc | null;
   color?: string | null;
+  isCombo?: boolean | null;
+  teeNumber?: number | null;
+  comboTeeNumbers?: {
+    low?: number | null;
+    high?: number | null;
+  } | null;
+  availableFor?: ScorecardComboAvailableFor | null;
   ratings?: {
     men?: ScorecardGenderRatingsDoc | null;
     women?: ScorecardGenderRatingsDoc | null;
@@ -151,6 +160,9 @@ export type ScorecardTeeSetDoc = {
 export type ScorecardConfigDoc = {
   hasWomenRatings?: boolean | null;
   teeCount?: number | null;
+  teeCountWomen?: number | null;
+  hasComboTees?: boolean | null;
+  comboTeeCount?: number | null;
   teeSets?: ScorecardTeeSetDoc[] | null;
   /** @deprecated Legacy tee name list */
   teeNames?: (string | null)[] | null;
@@ -169,6 +181,13 @@ export type ScorecardTeeData = {
   courseRating?: string;
   slopeRating?: string;
   color?: string;
+  /** Higher tee # color for combo split swatches. */
+  colorSecondary?: string;
+  isCombo?: boolean;
+  /** 1 = shortest standard tee. */
+  teeNumber?: number;
+  comboTeeNumbers?: { low: number; high: number };
+  availableFor?: ScorecardComboAvailableFor;
   yardages: string[];
   /** Men's stroke index per hole (convenience; same as handicapsByGender.men). */
   handicaps: string[];
@@ -200,7 +219,12 @@ export type ScorecardTeeData = {
 };
 
 export type CourseScorecardData = {
+  /** Total tee columns (standard + combo). */
   teeCount: number;
+  /** Standard (non-combo) tee count / men's tee count. */
+  standardTeeCount: number;
+  /** How many shortest standard tees (tee #1…N) have women's ratings. */
+  teeCountWomen: number;
   /** True when women's ratings/par/handicap exist in CMS (not the chart M/W toggle). */
   hasWomenRatings: boolean;
   tees: ScorecardTeeData[];
@@ -689,24 +713,125 @@ function resolveScorecardHoles(
   return course?.scorecardHoles ?? [];
 }
 
-function resolveScorecardTeeCount(course: CourseDoc | null): number {
+function resolveStandardTeeCount(course: CourseDoc | null): number {
   const count = course?.scorecard?.teeCount ?? 1;
   return Math.min(6, Math.max(1, count));
 }
 
+function resolveComboTeeCount(course: CourseDoc | null): number {
+  if (!course?.scorecard?.hasComboTees) return 0;
+  const count = course.scorecard.comboTeeCount ?? 1;
+  return Math.min(4, Math.max(1, count));
+}
+
+/** Total scorecard columns (standard + combo). */
+function resolveScorecardTeeCount(course: CourseDoc | null): number {
+  return resolveStandardTeeCount(course) + resolveComboTeeCount(course);
+}
+
+function resolveTeeCountWomen(course: CourseDoc | null, standardCount: number): number {
+  const raw = course?.scorecard?.teeCountWomen;
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    return Math.min(standardCount, Math.max(1, Math.round(raw)));
+  }
+  return standardCount;
+}
+
 function resolveScorecardTeeSets(
   course: CourseDoc | null,
-  teeCount: number,
+  columnCount: number,
+  standardCount: number,
 ): ScorecardTeeSetDoc[] {
   const sets = course?.scorecard?.teeSets ?? [];
   const legacyNames = course?.scorecard?.teeNames ?? [];
 
-  return Array.from({ length: teeCount }, (_, index) => {
+  return Array.from({ length: columnCount }, (_, index) => {
     const set = sets[index];
-    if (set) return set;
+    if (set) {
+      if (index >= standardCount && !set.isCombo) {
+        return { ...set, isCombo: true };
+      }
+      return set;
+    }
     const legacyName = legacyNames[index]?.trim();
+    if (index >= standardCount) {
+      return { isCombo: true, ...(legacyName ? { name: legacyName } : {}) };
+    }
     return legacyName ? { name: legacyName } : {};
   });
+}
+
+function resolveComboAvailableFor(
+  value: ScorecardComboAvailableFor | null | undefined,
+): ScorecardComboAvailableFor {
+  if (value === "men" || value === "women" || value === "both") return value;
+  return "both";
+}
+
+function resolveComboPair(
+  set: ScorecardTeeSetDoc,
+  standardCount: number,
+): { low: number; high: number } {
+  const max = Math.max(1, standardCount);
+  let low =
+    typeof set.comboTeeNumbers?.low === "number"
+      ? Math.round(set.comboTeeNumbers.low)
+      : 1;
+  let high =
+    typeof set.comboTeeNumbers?.high === "number"
+      ? Math.round(set.comboTeeNumbers.high)
+      : Math.min(2, max);
+  low = Math.min(max, Math.max(1, low));
+  high = Math.min(max, Math.max(1, high));
+  if (low === high) {
+    high = low < max ? low + 1 : Math.max(1, low - 1);
+  }
+  if (low > high) {
+    const swap = low;
+    low = high;
+    high = swap;
+  }
+  return { low, high };
+}
+
+function resolveStandardTeeNumber(
+  set: ScorecardTeeSetDoc,
+  index: number,
+  standardCount: number,
+): number {
+  if (typeof set.teeNumber === "number" && Number.isFinite(set.teeNumber)) {
+    return Math.min(standardCount, Math.max(1, Math.round(set.teeNumber)));
+  }
+  return Math.min(standardCount, Math.max(1, index + 1));
+}
+
+/** Whether a tee column is shown for the given scorecard gender. */
+export function scorecardTeeVisibleForGender(
+  tee: ScorecardTeeData,
+  gender: ScorecardGender,
+  teeCountWomen: number,
+): boolean {
+  if (tee.isCombo) {
+    const available = tee.availableFor ?? "both";
+    if (gender === "women") return available !== "men";
+    return available !== "women";
+  }
+  if (gender === "women") {
+    return (tee.teeNumber ?? 1) <= teeCountWomen;
+  }
+  return true;
+}
+
+/** Tees visible for a gender, preserving source indices into `data.tees`. */
+export function scorecardTeesForGender(
+  data: CourseScorecardData,
+  gender: ScorecardGender,
+): Array<{ tee: ScorecardTeeData; index: number }> {
+  return data.tees
+    .map((tee, index) => ({ tee, index }))
+    .filter(({ tee }) =>
+      scorecardTeeVisibleForGender(tee, gender, data.teeCountWomen),
+    );
 }
 
 function holeTeeEntries(
@@ -902,6 +1027,10 @@ export function scorecardTeeForGender(
   | "name"
   | "totalYards"
   | "color"
+  | "colorSecondary"
+  | "isCombo"
+  | "teeNumber"
+  | "availableFor"
   | "yardages"
   | "pars"
   | "totalPar"
@@ -929,6 +1058,10 @@ export function scorecardTeeForGender(
     name: tee.name,
     totalYards: tee.totalYards,
     color: tee.color,
+    colorSecondary: tee.colorSecondary,
+    isCombo: tee.isCombo,
+    teeNumber: tee.teeNumber,
+    availableFor: tee.availableFor,
     yardages: tee.yardages,
     courseRating: ratings?.courseRating ?? tee.courseRating,
     slopeRating: ratings?.slopeRating ?? tee.slopeRating,
@@ -945,22 +1078,83 @@ export function courseScorecardData(
   course: CourseDoc | null,
   holeCount: number,
 ): CourseScorecardData {
-  const teeCount = resolveScorecardTeeCount(course);
-  const teeSetDocs = resolveScorecardTeeSets(course, teeCount);
+  const standardTeeCount = resolveStandardTeeCount(course);
+  const comboTeeCount = resolveComboTeeCount(course);
+  const teeCount = standardTeeCount + comboTeeCount;
+  const teeCountWomen = resolveTeeCountWomen(course, standardTeeCount);
+  const teeSetDocs = resolveScorecardTeeSets(course, teeCount, standardTeeCount);
   const holes = resolveScorecardHoles(course);
   const holeArrays = emptyHoleArrays(holeCount);
+
+  const standardColorByNumber = new Map<number, string>();
+  for (let index = 0; index < standardTeeCount; index += 1) {
+    const set = teeSetDocs[index];
+    if (!set || set.isCombo) continue;
+    const teeNumber = resolveStandardTeeNumber(set, index, standardTeeCount);
+    standardColorByNumber.set(teeNumber, resolveTeeColor(set.color, index));
+  }
 
   const tees: ScorecardTeeData[] = teeSetDocs.map((set, index) => {
     const menRatings = resolveTeeSetRatings(set, "men");
     const womenRatings = resolveTeeSetRatings(set, "women");
     const menTotalPar = resolveTeeSetTotalPar(set, "men");
     const womenTotalPar = resolveTeeSetTotalPar(set, "women");
+    const isCombo = Boolean(set.isCombo) || index >= standardTeeCount;
+
+    if (isCombo) {
+      const pair = resolveComboPair(set, standardTeeCount);
+      const colorLow =
+        standardColorByNumber.get(pair.low) ??
+        resolveTeeColor(undefined, Math.max(0, pair.low - 1));
+      const colorHigh =
+        standardColorByNumber.get(pair.high) ??
+        resolveTeeColor(undefined, Math.max(0, pair.high - 1));
+      return {
+        name: set.name?.trim() || `Combo ${index - standardTeeCount + 1}`,
+        totalYards: set.totalYards?.trim() || undefined,
+        courseRating: menRatings?.courseRating,
+        slopeRating: menRatings?.slopeRating,
+        color: colorLow,
+        colorSecondary: colorHigh,
+        isCombo: true,
+        comboTeeNumbers: pair,
+        availableFor: resolveComboAvailableFor(set.availableFor),
+        yardages: [...holeArrays.yardages],
+        handicaps: [...holeArrays.handicaps],
+        ratings: {
+          men: menRatings,
+          women: womenRatings,
+        },
+        handicapsByGender: {
+          men: [...holeArrays.handicaps],
+          women: [...holeArrays.handicaps],
+        },
+        pars: [...holeArrays.pars],
+        parsByGender: {
+          men: [...holeArrays.parsByGender.men],
+          women: [...holeArrays.parsByGender.women],
+        },
+        cmsTotalPar: {
+          men: menTotalPar,
+          women: womenTotalPar,
+        },
+        totalPar: menTotalPar,
+        totalParByGender: {
+          men: menTotalPar,
+          women: womenTotalPar,
+        },
+      };
+    }
+
+    const teeNumber = resolveStandardTeeNumber(set, index, standardTeeCount);
     return {
       name: set.name?.trim() || `Tee ${index + 1}`,
       totalYards: set.totalYards?.trim() || undefined,
       courseRating: menRatings?.courseRating,
       slopeRating: menRatings?.slopeRating,
       color: resolveTeeColor(set.color, index),
+      isCombo: false,
+      teeNumber,
       yardages: [...holeArrays.yardages],
       handicaps: [...holeArrays.handicaps],
       ratings: {
@@ -1048,6 +1242,8 @@ export function courseScorecardData(
 
   return {
     teeCount,
+    standardTeeCount,
+    teeCountWomen,
     hasWomenRatings: courseHasWomenScorecard(course),
     tees,
     yardages: primary.yardages,
@@ -1175,9 +1371,19 @@ const courseScorecardProjection = `
   scorecard {
     hasWomenRatings,
     teeCount,
+    teeCountWomen,
+    hasComboTees,
+    comboTeeCount,
     teeSets[]{
       name,
       color,
+      isCombo,
+      teeNumber,
+      comboTeeNumbers {
+        low,
+        high
+      },
+      availableFor,
       totalYards,
       totalPar {
         men,

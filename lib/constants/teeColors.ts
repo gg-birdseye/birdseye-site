@@ -5,6 +5,10 @@ export const DEFAULT_TEE_COLORS = [
   "#3E6237",
   "#1a1a1a",
   "#6E6E6E",
+  "#8B5A2B",
+  "#4A6FA5",
+  "#C45C26",
+  "#5C7A3A",
 ] as const;
 
 const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/;
@@ -17,6 +21,17 @@ export function resolveTeeColor(
   const trimmed = color?.trim();
   if (trimmed && HEX_COLOR.test(trimmed)) return trimmed;
   return DEFAULT_TEE_COLORS[index] ?? fallback;
+}
+
+/**
+ * Diagonal split for combo tees: lower tee # color top-left,
+ * higher tee # color bottom-right (line from bottom-left to top-right).
+ */
+export function teeSplitBackground(
+  colorLow: string,
+  colorHigh: string,
+): string {
+  return `linear-gradient(to bottom right, ${colorLow} 50%, ${colorHigh} 50%)`;
 }
 
 function srgbChannelToLinear(channel: number): number {

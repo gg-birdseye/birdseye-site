@@ -17,6 +17,7 @@ import { CameraPathOverlay } from "@/components/CameraPathOverlay";
 import { LandingZoneOverlay } from "@/components/LandingZoneOverlay";
 import { HoleSelectorOverlay } from "@/components/HoleSelectorOverlay";
 import type { ScorecardChartTeeOption } from "@/components/ScorecardChartOverlay";
+import { teeSplitBackground } from "@/lib/constants/teeColors";
 
 type EmbeddedHoleSelectorProps = {
   holeCount: number;
@@ -250,7 +251,16 @@ export function HoleGraphicPanel({
               >
                 <span
                   className="course-hole-graphic-panel-menu-tee-swatch"
-                  style={{ backgroundColor: tee.color }}
+                  style={
+                    tee.colorSecondary
+                      ? {
+                          backgroundImage: teeSplitBackground(
+                            tee.color,
+                            tee.colorSecondary,
+                          ),
+                        }
+                      : { backgroundColor: tee.color }
+                  }
                   aria-hidden
                 />
                 <span className="course-hole-graphic-panel-menu-tee-label">

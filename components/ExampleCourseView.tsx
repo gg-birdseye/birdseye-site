@@ -21,6 +21,7 @@ import {
   scorecardDisplayTotalPar,
   scorecardParsForGender,
   scorecardTeeForGender,
+  scorecardTeesForGender,
   type CourseAerialMapData,
   type CourseContactInfo,
   type CourseHoleDescriptions,
@@ -657,6 +658,22 @@ export function ExampleCourseView({
   }, [demoScorecard, scorecardData?.teeCount, selectedTee]);
 
   useEffect(() => {
+    if (demoScorecard || !scorecardData) return;
+    const gender = showScorecardGenderToggle ? scorecardGender : "men";
+    const visible = scorecardTeesForGender(scorecardData, gender);
+    if (!visible.length) return;
+    if (!visible.some(({ index }) => index === selectedTee)) {
+      setSelectedTee(visible[0].index);
+    }
+  }, [
+    demoScorecard,
+    scorecardData,
+    scorecardGender,
+    selectedTee,
+    showScorecardGenderToggle,
+  ]);
+
+  useEffect(() => {
     if (didInitBackTee.current) return;
 
     if (demoScorecard) {
@@ -770,8 +787,9 @@ export function ExampleCourseView({
         color,
       }));
     }
+    if (!scorecardData) return [];
     const gender = showScorecardGenderToggle ? scorecardGender : "men";
-    return (scorecardData?.tees ?? []).map((tee, index) => {
+    return scorecardTeesForGender(scorecardData, gender).map(({ tee, index }) => {
       const resolved = scorecardTeeForGender(tee, gender);
       return {
         index,
@@ -783,32 +801,30 @@ export function ExampleCourseView({
         courseRating: resolved.courseRating,
         slopeRating: resolved.slopeRating,
         color: resolveTeeColor(tee.color, index, accentColor),
+        colorSecondary: tee.colorSecondary
+          ? resolveTeeColor(tee.colorSecondary, index, accentColor)
+          : undefined,
       };
     });
   }, [
     accentColor,
     demoScorecard,
     holeCount,
-    scorecardData?.tees,
+    scorecardData,
     scorecardGender,
     showScorecardGenderToggle,
   ]);
 
   const allTeeYardages = useMemo(() => {
     if (demoScorecard) return TEE_YARDAGES;
-    if (scorecardData?.tees?.length) {
-      return scorecardData.tees.map(
-        (tee) =>
-          scorecardTeeForGender(
-            tee,
-            showScorecardGenderToggle ? scorecardGender : "men",
-          ).yardages,
-      );
-    }
-    return [yardages];
+    if (!scorecardData?.tees?.length) return [yardages];
+    const gender = showScorecardGenderToggle ? scorecardGender : "men";
+    const visible = scorecardTeesForGender(scorecardData, gender);
+    if (!visible.length) return [yardages];
+    return visible.map(({ tee }) => scorecardTeeForGender(tee, gender).yardages);
   }, [
     demoScorecard,
-    scorecardData?.tees,
+    scorecardData,
     scorecardGender,
     showScorecardGenderToggle,
     yardages,

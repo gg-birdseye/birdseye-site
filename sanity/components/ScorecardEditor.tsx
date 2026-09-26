@@ -14,11 +14,15 @@ import {
 } from 'react'
 import { set, useFormValue } from 'sanity'
 import type { ObjectInputProps } from 'sanity'
-import { resolveTeeColor } from '../../lib/constants/teeColors'
+import { resolveTeeColor, teeSplitBackground } from '../../lib/constants/teeColors'
 
-import { SCORECARD_TEE_COUNT_OPTIONS } from '../schemaTypes/scorecardConfig'
+import {
+  SCORECARD_COMBO_TEE_COUNT_OPTIONS,
+  SCORECARD_TEE_COUNT_OPTIONS,
+} from '../schemaTypes/scorecardConfig'
 
 type ScorecardGender = 'men' | 'women'
+type ComboAvailableFor = 'both' | 'men' | 'women'
 
 type GenderRatings = {
   courseRating?: string
@@ -31,12 +35,21 @@ type TeeEntry = {
   handicap?: { men?: string; women?: string } | string
 }
 
+type ComboTeeNumbers = {
+  low?: number
+  high?: number
+}
+
 type TeeSet = {
   name?: string
   color?: string
   totalYards?: string
   totalPar?: { men?: string; women?: string }
   ratings?: { men?: GenderRatings; women?: GenderRatings }
+  isCombo?: boolean
+  teeNumber?: number
+  comboTeeNumbers?: ComboTeeNumbers
+  availableFor?: ComboAvailableFor
   /** @deprecated Legacy flat men's ratings */
   courseRating?: string
   /** @deprecated Legacy flat men's ratings */
@@ -58,15 +71,49 @@ type ScorecardValue = {
   _type?: 'scorecardConfig'
   hasWomenRatings?: boolean
   teeCount?: number
+  teeCountWomen?: number
+  hasComboTees?: boolean
+  comboTeeCount?: number
   teeSets?: TeeSet[]
   teeNames?: string[]
   holes?: HoleItem[]
 }
 
+type NormalizedScorecard = Required<
+  Pick<
+    ScorecardValue,
+    | 'hasWomenRatings'
+    | 'teeCount'
+    | 'teeCountWomen'
+    | 'hasComboTees'
+    | 'comboTeeCount'
+    | 'teeSets'
+    | 'holes'
+  >
+>
+
 const TEE_COUNTS = SCORECARD_TEE_COUNT_OPTIONS.map((option) => option.value)
+const COMBO_COUNTS = SCORECARD_COMBO_TEE_COUNT_OPTIONS.map((option) => option.value)
 
 function makeKey(holeNumber: number) {
   return `scorecard-hole-${holeNumber}`
+}
+
+function clampWomenTeeCount(women: number | undefined, men: number, hasWomen: boolean): number {
+  if (!hasWomen) return men
+  const raw = typeof women === 'number' && Number.isFinite(women) ? women : men
+  return Math.min(men, Math.max(1, Math.round(raw)))
+}
+
+function clampComboTeeCount(hasCombo: boolean, count: number | undefined): number {
+  if (!hasCombo) return 0
+  const raw = typeof count === 'number' && Number.isFinite(count) ? count : 1
+  if (COMBO_COUNTS.includes(raw as (typeof COMBO_COUNTS)[number])) return raw
+  return 1
+}
+
+function totalTeeSlots(standardCount: number, comboCount: number): number {
+  return standardCount + comboCount
 }
 
 function normalizeGenderRatings(set: TeeSet | undefined): {
@@ -89,33 +136,94 @@ function normalizeGenderRatings(set: TeeSet | undefined): {
   }
 }
 
+function normalizeComboAvailableFor(value: ComboAvailableFor | undefined): ComboAvailableFor {
+  if (value === 'men' || value === 'women' || value === 'both') return value
+  return 'both'
+}
+
+function normalizeComboPair(
+  pair: ComboTeeNumbers | undefined,
+  standardCount: number,
+): { low: number; high: number } {
+  const max = Math.max(1, standardCount)
+  let low = typeof pair?.low === 'number' && Number.isFinite(pair.low) ? Math.round(pair.low) : 1
+  let high = typeof pair?.high === 'number' && Number.isFinite(pair.high) ? Math.round(pair.high) : Math.min(2, max)
+  low = Math.min(max, Math.max(1, low))
+  high = Math.min(max, Math.max(1, high))
+  if (low === high) {
+    high = low < max ? low + 1 : Math.max(1, low - 1)
+  }
+  if (low > high) {
+    const swap = low
+    low = high
+    high = swap
+  }
+  return { low, high }
+}
+
 function syncTeeSets(
-  count: number,
+  standardCount: number,
+  comboCount: number,
   existing: TeeSet[] = [],
   legacyNames: string[] = [],
 ): TeeSet[] {
-  return Array.from({ length: count }, (_, index) => {
+  const total = totalTeeSlots(standardCount, comboCount)
+  const usedNumbers = new Set<number>()
+
+  return Array.from({ length: total }, (_, index) => {
+    const isCombo = index >= standardCount
     const prev = existing[index]
+    const ratings = normalizeGenderRatings(prev)
+
+    if (isCombo) {
+      return {
+        name: prev?.name ?? '',
+        isCombo: true,
+        totalYards: prev?.totalYards ?? '',
+        totalPar: normalizeGenderValues(prev?.totalPar),
+        ratings,
+        comboTeeNumbers: normalizeComboPair(prev?.comboTeeNumbers, standardCount),
+        availableFor: normalizeComboAvailableFor(prev?.availableFor),
+      }
+    }
+
+    let teeNumber =
+      typeof prev?.teeNumber === 'number' && Number.isFinite(prev.teeNumber)
+        ? Math.round(prev.teeNumber)
+        : index + 1
+    teeNumber = Math.min(standardCount, Math.max(1, teeNumber))
+    if (usedNumbers.has(teeNumber)) {
+      for (let candidate = 1; candidate <= standardCount; candidate += 1) {
+        if (!usedNumbers.has(candidate)) {
+          teeNumber = candidate
+          break
+        }
+      }
+    }
+    usedNumbers.add(teeNumber)
+
     return {
       name: prev?.name ?? legacyNames[index] ?? '',
+      isCombo: false,
+      teeNumber,
       color: resolveTeeColor(prev?.color, index),
       totalYards: prev?.totalYards ?? '',
       totalPar: normalizeGenderValues(prev?.totalPar),
-      ratings: normalizeGenderRatings(prev),
+      ratings,
     }
   })
 }
 
 function sumParForTeeColumn(
   holes: HoleItem[],
-  teeCount: number,
+  columnCount: number,
   teeIndex: number,
   gender: ScorecardGender,
 ): string {
   let sum = 0
   let hasValue = false
   for (const row of holes) {
-    const tees = syncTeeEntries(teeCount, row.tees ?? [])
+    const tees = syncTeeEntries(columnCount, row.tees ?? [])
     const raw = normalizePar(tees[teeIndex]?.par)[gender].trim()
     if (!raw) continue
     const value = Number.parseInt(raw, 10)
@@ -130,13 +238,13 @@ function sumParForTeeColumn(
 function applyComputedTotalPars(
   teeSets: TeeSet[],
   holes: HoleItem[],
-  teeCount: number,
+  columnCount: number,
 ): TeeSet[] {
   return teeSets.map((teeSet, teeIndex) => ({
     ...teeSet,
     totalPar: {
-      men: sumParForTeeColumn(holes, teeCount, teeIndex, 'men'),
-      women: sumParForTeeColumn(holes, teeCount, teeIndex, 'women'),
+      men: sumParForTeeColumn(holes, columnCount, teeIndex, 'men'),
+      women: sumParForTeeColumn(holes, columnCount, teeIndex, 'women'),
     },
   }))
 }
@@ -183,7 +291,7 @@ function syncTeeEntries(
 
 function buildHoleSlots(
   holeCount: number,
-  teeCount: number,
+  columnCount: number,
   existing: HoleItem[] = [],
 ): HoleItem[] {
   const byNumber = new Map(
@@ -210,7 +318,7 @@ function buildHoleSlots(
         : []
     const holePar = normalizePar(prev?.par)
     const tees = syncTeeEntries(
-      teeCount,
+      columnCount,
       prev?.tees?.length ? prev.tees : legacyTees,
       holePar,
     )
@@ -224,22 +332,43 @@ function buildHoleSlots(
   })
 }
 
+function colorByTeeNumber(teeSets: TeeSet[], teeNumber: number): string {
+  const match = teeSets.find(
+    (set) => !set.isCombo && set.teeNumber === teeNumber,
+  )
+  if (match) {
+    const standardIndex = teeSets
+      .filter((set) => !set.isCombo)
+      .findIndex((set) => set.teeNumber === teeNumber)
+    return resolveTeeColor(match.color, standardIndex >= 0 ? standardIndex : 0)
+  }
+  return resolveTeeColor(undefined, Math.max(0, teeNumber - 1))
+}
+
 function normalizeScorecard(
   value: ScorecardValue | undefined,
   holeCount: number,
-): Required<Pick<ScorecardValue, 'hasWomenRatings' | 'teeCount' | 'teeSets' | 'holes'>> {
+): NormalizedScorecard {
   const teeCount = TEE_COUNTS.includes((value?.teeCount ?? 3) as (typeof TEE_COUNTS)[number])
     ? (value?.teeCount ?? 3)
     : 3
-  const holes = buildHoleSlots(holeCount, teeCount, value?.holes ?? [])
+  const hasWomenRatings = Boolean(value?.hasWomenRatings)
+  const teeCountWomen = clampWomenTeeCount(value?.teeCountWomen, teeCount, hasWomenRatings)
+  const hasComboTees = Boolean(value?.hasComboTees)
+  const comboTeeCount = clampComboTeeCount(hasComboTees, value?.comboTeeCount)
+  const columnCount = totalTeeSlots(teeCount, comboTeeCount)
+  const holes = buildHoleSlots(holeCount, columnCount, value?.holes ?? [])
   const teeSets = applyComputedTotalPars(
-    syncTeeSets(teeCount, value?.teeSets ?? [], value?.teeNames ?? []),
+    syncTeeSets(teeCount, comboTeeCount, value?.teeSets ?? [], value?.teeNames ?? []),
     holes,
-    teeCount,
+    columnCount,
   )
   return {
-    hasWomenRatings: Boolean(value?.hasWomenRatings),
+    hasWomenRatings,
     teeCount,
+    teeCountWomen,
+    hasComboTees,
+    comboTeeCount: hasComboTees ? comboTeeCount || 1 : 1,
     teeSets,
     holes,
   }
@@ -250,28 +379,53 @@ function scorecardMatches(
   holeCount: number,
 ): boolean {
   const normalized = normalizeScorecard(value, holeCount)
+  const columnCount = totalTeeSlots(
+    normalized.teeCount,
+    normalized.hasComboTees ? normalized.comboTeeCount : 0,
+  )
   if ((value?.teeCount ?? 3) !== normalized.teeCount) return false
-  if ((value?.teeSets ?? []).length !== normalized.teeCount) return false
+  if (Boolean(value?.hasWomenRatings) !== normalized.hasWomenRatings) return false
+  if (normalized.hasWomenRatings) {
+    if ((value?.teeCountWomen ?? normalized.teeCount) !== normalized.teeCountWomen) return false
+  }
+  if (Boolean(value?.hasComboTees) !== normalized.hasComboTees) return false
+  if (normalized.hasComboTees) {
+    if ((value?.comboTeeCount ?? 1) !== normalized.comboTeeCount) return false
+  }
+  if ((value?.teeSets ?? []).length !== columnCount) return false
   if ((value?.holes ?? []).length !== holeCount) return false
 
   for (let holeIndex = 0; holeIndex < holeCount; holeIndex += 1) {
     const hole = value?.holes?.[holeIndex]
     if (hole?.holeNumber !== holeIndex + 1) return false
-    if ((hole?.tees ?? []).length !== normalized.teeCount) return false
+    if ((hole?.tees ?? []).length !== columnCount) return false
   }
 
-  for (let teeIndex = 0; teeIndex < normalized.teeCount; teeIndex += 1) {
-    const stored = normalizeGenderValues(value?.teeSets?.[teeIndex]?.totalPar)
-    const computed = normalizeGenderValues(normalized.teeSets[teeIndex]?.totalPar)
+  for (let teeIndex = 0; teeIndex < columnCount; teeIndex += 1) {
+    const storedSet = value?.teeSets?.[teeIndex]
+    const normalizedSet = normalized.teeSets[teeIndex]
+    if (Boolean(storedSet?.isCombo) !== Boolean(normalizedSet?.isCombo)) return false
+    if (!normalizedSet.isCombo) {
+      if ((storedSet?.teeNumber ?? teeIndex + 1) !== normalizedSet.teeNumber) return false
+    } else {
+      const storedPair = normalizeComboPair(storedSet?.comboTeeNumbers, normalized.teeCount)
+      const nextPair = normalizedSet.comboTeeNumbers!
+      if (storedPair.low !== nextPair.low || storedPair.high !== nextPair.high) return false
+      if (normalizeComboAvailableFor(storedSet?.availableFor) !== normalizedSet.availableFor) {
+        return false
+      }
+    }
+    const stored = normalizeGenderValues(storedSet?.totalPar)
+    const computed = normalizeGenderValues(normalizedSet?.totalPar)
     if (stored.men !== computed.men || stored.women !== computed.women) return false
   }
 
   return true
 }
 
-function buildGridStyle(teeCount: number): CSSProperties {
+function buildGridStyle(columnCount: number): CSSProperties {
   const teeColumns = Array.from(
-    { length: teeCount },
+    { length: columnCount },
     () =>
       'minmax(3.25rem, 1fr) minmax(6rem, 1fr) minmax(4.5rem, 1fr)',
   ).join(' ')
@@ -280,7 +434,7 @@ function buildGridStyle(teeCount: number): CSSProperties {
     gridTemplateColumns: `3.5rem ${teeColumns}`,
     gap: '0.5rem',
     alignItems: 'start',
-    minWidth: `${10 + teeCount * 14}rem`,
+    minWidth: `${10 + columnCount * 14}rem`,
   }
 }
 
@@ -334,6 +488,24 @@ function handleHoleFieldTabKey(
   focusHoleField(container, nextOrder)
 }
 
+function columnVisibleForGender(
+  teeSet: TeeSet,
+  editorGender: ScorecardGender,
+  teeCountWomen: number,
+  hasWomenRatings: boolean,
+): boolean {
+  if (!hasWomenRatings) return true
+  if (teeSet.isCombo) {
+    const available = teeSet.availableFor ?? 'both'
+    if (editorGender === 'women') return available !== 'men'
+    return available !== 'women'
+  }
+  if (editorGender === 'women') {
+    return (teeSet.teeNumber ?? 1) <= teeCountWomen
+  }
+  return true
+}
+
 export function ScorecardEditor(props: ObjectInputProps) {
   const holeCount = useFormValue(['holeCount']) as number | undefined
   const readOnly = props.readOnly
@@ -363,12 +535,12 @@ export function ScorecardEditor(props: ObjectInputProps) {
     return normalizeScorecard(value, holeCount)
   }, [holeCount, value])
 
+  const columnCount = display
+    ? totalTeeSlots(display.teeCount, display.hasComboTees ? display.comboTeeCount : 0)
+    : 0
+
   const commit = useCallback(
-    (
-      next: Required<
-        Pick<ScorecardValue, 'hasWomenRatings' | 'teeCount' | 'teeSets' | 'holes'>
-      >,
-    ) => {
+    (next: NormalizedScorecard) => {
       if (readOnly) return
       props.onChange(
         set({
@@ -380,44 +552,176 @@ export function ScorecardEditor(props: ObjectInputProps) {
     [props, readOnly],
   )
 
+  const rebuildColumns = useCallback(
+    (
+      base: NormalizedScorecard,
+      overrides: Partial<
+        Pick<
+          NormalizedScorecard,
+          'teeCount' | 'teeCountWomen' | 'hasComboTees' | 'comboTeeCount' | 'hasWomenRatings'
+        >
+      >,
+    ): NormalizedScorecard => {
+      const teeCount = overrides.teeCount ?? base.teeCount
+      const hasWomenRatings = overrides.hasWomenRatings ?? base.hasWomenRatings
+      const teeCountWomen = clampWomenTeeCount(
+        overrides.teeCountWomen ?? base.teeCountWomen,
+        teeCount,
+        hasWomenRatings,
+      )
+      const hasComboTees = overrides.hasComboTees ?? base.hasComboTees
+      const comboTeeCount = clampComboTeeCount(
+        hasComboTees,
+        overrides.comboTeeCount ?? base.comboTeeCount,
+      )
+      const cols = totalTeeSlots(teeCount, comboTeeCount)
+      const holes = buildHoleSlots(holeCount!, cols, base.holes)
+      const teeSets = applyComputedTotalPars(
+        syncTeeSets(teeCount, comboTeeCount, base.teeSets),
+        holes,
+        cols,
+      )
+      return {
+        ...base,
+        hasWomenRatings,
+        teeCount,
+        teeCountWomen,
+        hasComboTees,
+        comboTeeCount: hasComboTees ? comboTeeCount || 1 : 1,
+        teeSets,
+        holes,
+      }
+    },
+    [holeCount],
+  )
+
   const setHasWomenRatings = useCallback(
     (checked: boolean) => {
       if (!holeCount || readOnly) return
       const base = normalizeScorecard(value, holeCount)
-      commit({ ...base, hasWomenRatings: checked })
+      commit(
+        rebuildColumns(base, {
+          hasWomenRatings: checked,
+          teeCountWomen: checked ? base.teeCountWomen || base.teeCount : base.teeCount,
+        }),
+      )
     },
-    [commit, holeCount, readOnly, value],
+    [commit, holeCount, readOnly, rebuildColumns, value],
   )
 
   const setTeeCount = useCallback(
     (teeCount: number) => {
       if (!holeCount || readOnly) return
       const base = normalizeScorecard(value, holeCount)
-      const holes = buildHoleSlots(holeCount, teeCount, base.holes)
-      const teeSets = applyComputedTotalPars(
-        syncTeeSets(teeCount, base.teeSets),
-        holes,
-        teeCount,
-      )
-      commit({
-        ...base,
-        teeCount,
-        teeSets,
-        holes,
-      })
+      commit(rebuildColumns(base, { teeCount }))
     },
-    [commit, holeCount, readOnly, value],
+    [commit, holeCount, readOnly, rebuildColumns, value],
+  )
+
+  const setTeeCountWomen = useCallback(
+    (teeCountWomen: number) => {
+      if (!holeCount || readOnly) return
+      const base = normalizeScorecard(value, holeCount)
+      commit(rebuildColumns(base, { teeCountWomen }))
+    },
+    [commit, holeCount, readOnly, rebuildColumns, value],
+  )
+
+  const setHasComboTees = useCallback(
+    (checked: boolean) => {
+      if (!holeCount || readOnly) return
+      const base = normalizeScorecard(value, holeCount)
+      commit(
+        rebuildColumns(base, {
+          hasComboTees: checked,
+          comboTeeCount: checked ? base.comboTeeCount || 1 : 0,
+        }),
+      )
+    },
+    [commit, holeCount, readOnly, rebuildColumns, value],
+  )
+
+  const setComboTeeCount = useCallback(
+    (comboTeeCount: number) => {
+      if (!holeCount || readOnly) return
+      const base = normalizeScorecard(value, holeCount)
+      commit(rebuildColumns(base, { hasComboTees: true, comboTeeCount }))
+    },
+    [commit, holeCount, readOnly, rebuildColumns, value],
+  )
+
+  const withSyncedSets = useCallback(
+    (base: NormalizedScorecard) => {
+      const comboCount = base.hasComboTees ? base.comboTeeCount : 0
+      return syncTeeSets(base.teeCount, comboCount, base.teeSets)
+    },
+    [],
   )
 
   const setTeeSetField = useCallback(
     (teeIndex: number, field: 'name' | 'color' | 'totalYards', fieldValue: string) => {
       if (!holeCount || readOnly) return
       const base = normalizeScorecard(value, holeCount)
-      const teeSets = syncTeeSets(base.teeCount, base.teeSets)
+      const teeSets = withSyncedSets(base)
       teeSets[teeIndex] = { ...teeSets[teeIndex], [field]: fieldValue }
       commit({ ...base, teeSets })
     },
-    [commit, holeCount, readOnly, value],
+    [commit, holeCount, readOnly, value, withSyncedSets],
+  )
+
+  const setTeeNumber = useCallback(
+    (teeIndex: number, teeNumber: number) => {
+      if (!holeCount || readOnly) return
+      const base = normalizeScorecard(value, holeCount)
+      const teeSets = withSyncedSets(base)
+      const current = teeSets[teeIndex]
+      if (!current || current.isCombo) return
+
+      const swapIndex = teeSets.findIndex(
+        (set, index) =>
+          index !== teeIndex && !set.isCombo && set.teeNumber === teeNumber,
+      )
+      teeSets[teeIndex] = { ...current, teeNumber }
+      if (swapIndex >= 0) {
+        teeSets[swapIndex] = {
+          ...teeSets[swapIndex],
+          teeNumber: current.teeNumber ?? teeIndex + 1,
+        }
+      }
+      commit({ ...base, teeSets })
+    },
+    [commit, holeCount, readOnly, value, withSyncedSets],
+  )
+
+  const setComboPairField = useCallback(
+    (teeIndex: number, side: 'low' | 'high', fieldValue: number) => {
+      if (!holeCount || readOnly) return
+      const base = normalizeScorecard(value, holeCount)
+      const teeSets = withSyncedSets(base)
+      const current = teeSets[teeIndex]
+      if (!current?.isCombo) return
+      const pair = normalizeComboPair(current.comboTeeNumbers, base.teeCount)
+      pair[side] = fieldValue
+      teeSets[teeIndex] = {
+        ...current,
+        comboTeeNumbers: normalizeComboPair(pair, base.teeCount),
+      }
+      commit({ ...base, teeSets })
+    },
+    [commit, holeCount, readOnly, value, withSyncedSets],
+  )
+
+  const setComboAvailableFor = useCallback(
+    (teeIndex: number, availableFor: ComboAvailableFor) => {
+      if (!holeCount || readOnly) return
+      const base = normalizeScorecard(value, holeCount)
+      const teeSets = withSyncedSets(base)
+      const current = teeSets[teeIndex]
+      if (!current?.isCombo) return
+      teeSets[teeIndex] = { ...current, availableFor }
+      commit({ ...base, teeSets })
+    },
+    [commit, holeCount, readOnly, value, withSyncedSets],
   )
 
   const setTeeRatingField = useCallback(
@@ -429,13 +733,13 @@ export function ScorecardEditor(props: ObjectInputProps) {
     ) => {
       if (!holeCount || readOnly) return
       const base = normalizeScorecard(value, holeCount)
-      const teeSets = syncTeeSets(base.teeCount, base.teeSets)
+      const teeSets = withSyncedSets(base)
       const ratings = normalizeGenderRatings(teeSets[teeIndex])
       ratings[gender] = { ...ratings[gender], [field]: fieldValue }
       teeSets[teeIndex] = { ...teeSets[teeIndex], ratings }
       commit({ ...base, teeSets })
     },
-    [commit, holeCount, readOnly, value],
+    [commit, holeCount, readOnly, value, withSyncedSets],
   )
 
   const setTeeField = useCallback(
@@ -447,9 +751,10 @@ export function ScorecardEditor(props: ObjectInputProps) {
     ) => {
       if (!holeCount || readOnly) return
       const base = normalizeScorecard(value, holeCount)
+      const cols = totalTeeSlots(base.teeCount, base.hasComboTees ? base.comboTeeCount : 0)
       const holes = base.holes.map((row) => {
         if (row.holeNumber !== holeNumber) return row
-        const tees = syncTeeEntries(base.teeCount, row.tees ?? [])
+        const tees = syncTeeEntries(cols, row.tees ?? [])
         tees[teeIndex] = { ...tees[teeIndex], [field]: fieldValue }
         return { ...row, tees }
       })
@@ -467,9 +772,10 @@ export function ScorecardEditor(props: ObjectInputProps) {
     ) => {
       if (!holeCount || readOnly) return
       const base = normalizeScorecard(value, holeCount)
+      const cols = totalTeeSlots(base.teeCount, base.hasComboTees ? base.comboTeeCount : 0)
       const holes = base.holes.map((row) => {
         if (row.holeNumber !== holeNumber) return row
-        const tees = syncTeeEntries(base.teeCount, row.tees ?? [])
+        const tees = syncTeeEntries(cols, row.tees ?? [])
         const handicap = normalizeHandicap(tees[teeIndex]?.handicap)
         handicap[gender] = fieldValue
         tees[teeIndex] = { ...tees[teeIndex], handicap }
@@ -489,9 +795,10 @@ export function ScorecardEditor(props: ObjectInputProps) {
     ) => {
       if (!holeCount || readOnly) return
       const base = normalizeScorecard(value, holeCount)
+      const cols = totalTeeSlots(base.teeCount, base.hasComboTees ? base.comboTeeCount : 0)
       const holes = base.holes.map((row) => {
         if (row.holeNumber !== holeNumber) return row
-        const tees = syncTeeEntries(base.teeCount, row.tees ?? [])
+        const tees = syncTeeEntries(cols, row.tees ?? [])
         const par = normalizePar(tees[teeIndex]?.par)
         par[gender] = fieldValue
         tees[teeIndex] = { ...tees[teeIndex], par }
@@ -500,7 +807,7 @@ export function ScorecardEditor(props: ObjectInputProps) {
       commit({
         ...base,
         holes,
-        teeSets: applyComputedTotalPars(base.teeSets, holes, base.teeCount),
+        teeSets: applyComputedTotalPars(base.teeSets, holes, cols),
       })
     },
     [commit, holeCount, readOnly, value],
@@ -519,15 +826,28 @@ export function ScorecardEditor(props: ObjectInputProps) {
 
   if (!display) return null
 
-  const gridStyle = buildGridStyle(display.teeCount)
-  const holeFieldCount = holeFieldTabCount(holeCount, display.teeCount)
+  const visibleTeeIndices = display.teeSets
+    .map((teeSet, teeIndex) => ({ teeSet, teeIndex }))
+    .filter(({ teeSet }) =>
+      columnVisibleForGender(
+        teeSet,
+        editorGender,
+        display.teeCountWomen,
+        display.hasWomenRatings,
+      ),
+    )
+    .map(({ teeIndex }) => teeIndex)
+  const visibleColumnCount = visibleTeeIndices.length || columnCount
+  const gridStyle = buildGridStyle(visibleColumnCount)
+  const holeFieldCount = holeFieldTabCount(holeCount, visibleColumnCount)
+  const womenTeeOptions = Array.from({ length: display.teeCount }, (_, index) => index + 1)
 
   return (
     <Box paddingY={2}>
       <Flex align="center" gap={3} marginBottom={4} wrap="wrap">
         <Box style={{ minWidth: '12rem' }}>
           <Label size={1} muted>
-            Number of Tees
+            {display.hasWomenRatings ? "Men's tees" : 'Number of Tees'}
           </Label>
           <Select
             fontSize={2}
@@ -543,6 +863,60 @@ export function ScorecardEditor(props: ObjectInputProps) {
             ))}
           </Select>
         </Box>
+
+        {display.hasWomenRatings ? (
+          <Box style={{ minWidth: '12rem' }}>
+            <Label size={1} muted>
+              Women&apos;s tees
+            </Label>
+            <Select
+              fontSize={2}
+              padding={3}
+              value={String(display.teeCountWomen)}
+              disabled={readOnly}
+              onChange={(event) => setTeeCountWomen(Number(event.currentTarget.value))}
+            >
+              {womenTeeOptions.map((count) => (
+                <option key={count} value={count}>
+                  {count} {count === 1 ? 'tee' : 'tees'} (shortest #{count === 1 ? '1' : `1–${count}`})
+                </option>
+              ))}
+            </Select>
+          </Box>
+        ) : null}
+
+        <Flex align="center" gap={2} wrap="wrap">
+          <Checkbox
+            checked={display.hasComboTees}
+            disabled={readOnly}
+            onChange={(event) => setHasComboTees(event.currentTarget.checked)}
+          />
+          <Text size={1} muted>
+            Combo Tees?
+          </Text>
+        </Flex>
+
+        {display.hasComboTees ? (
+          <Box style={{ minWidth: '11rem' }}>
+            <Label size={1} muted>
+              Combo tee count
+            </Label>
+            <Select
+              fontSize={2}
+              padding={3}
+              value={String(display.comboTeeCount)}
+              disabled={readOnly}
+              onChange={(event) => setComboTeeCount(Number(event.currentTarget.value))}
+            >
+              {SCORECARD_COMBO_TEE_COUNT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.title}
+                </option>
+              ))}
+            </Select>
+          </Box>
+        ) : null}
+
         <Flex align="center" gap={3} wrap="wrap">
           <Checkbox
             checked={display.hasWomenRatings}
@@ -566,8 +940,13 @@ export function ScorecardEditor(props: ObjectInputProps) {
           ))}
         </Flex>
         <Text muted size={1}>
-          {holeCount} holes · {display.teeCount} tees · editing{' '}
-          {editorGender === 'men' ? "men's" : "women's"} par (per tee), ratings &amp;
+          {holeCount} holes · {visibleColumnCount} tees
+          {visibleColumnCount !== columnCount
+            ? ` shown for ${editorGender === 'men' ? "men's" : "women's"}`
+            : display.hasComboTees
+              ? ` (${display.teeCount} standard + ${display.comboTeeCount} combo)`
+              : ''}{' '}
+          · editing {editorGender === 'men' ? "men's" : "women's"} par (per tee), ratings &amp;
           stroke index — tab down each column to enter data quickly.
         </Text>
       </Flex>
@@ -578,13 +957,26 @@ export function ScorecardEditor(props: ObjectInputProps) {
             Hole
           </Text>
 
-          {display.teeSets.map((teeSet, teeIndex) => {
+          {visibleTeeIndices.map((teeIndex) => {
+            const teeSet = display.teeSets[teeIndex]
             const ratings = normalizeGenderRatings(teeSet)
             const activeRatings = ratings[editorGender]
+            const comboPair = teeSet.isCombo
+              ? normalizeComboPair(teeSet.comboTeeNumbers, display.teeCount)
+              : null
+            const comboLowColor = comboPair
+              ? colorByTeeNumber(display.teeSets, comboPair.low)
+              : undefined
+            const comboHighColor = comboPair
+              ? colorByTeeNumber(display.teeSets, comboPair.high)
+              : undefined
+
             return (
             <Box
               key={`tee-header-${teeIndex}`}
-              style={{ gridColumn: 'span 3 / span 3' }}
+              style={{
+                gridColumn: 'span 3 / span 3',
+              }}
             >
               <Stack space={3}>
                 <Box>
@@ -600,43 +992,163 @@ export function ScorecardEditor(props: ObjectInputProps) {
                         }
                         onFocus={selectAllOnFocus}
                         readOnly={readOnly}
-                        placeholder={`Tee ${teeIndex + 1}`}
+                        placeholder={
+                          teeSet.isCombo
+                            ? `Combo ${teeIndex - display.teeCount + 1}`
+                            : `Tee ${teeIndex + 1}`
+                        }
                       />
                     </Box>
-                    <Box>
-                      <Label size={0} muted>
-                        Color
-                      </Label>
-                      <Box
-                        as="label"
-                        style={{
-                          display: 'block',
-                          cursor: readOnly ? 'default' : 'pointer',
-                        }}
-                      >
-                        <input
-                          type="color"
-                          value={resolveTeeColor(teeSet.color, teeIndex)}
-                          onChange={(event) =>
-                            setTeeSetField(teeIndex, 'color', event.currentTarget.value)
-                          }
-                          disabled={readOnly}
-                          aria-label={`Color for ${teeSet.name?.trim() || `tee ${teeIndex + 1}`}`}
+                    {teeSet.isCombo ? (
+                      <Box>
+                        <Label size={0} muted>
+                          Colors
+                        </Label>
+                        <Box
+                          aria-hidden
                           style={{
-                            display: 'block',
                             width: '2.5rem',
                             height: '2.25rem',
-                            padding: 0,
-                            border: '1px solid var(--card-border-color, rgba(0,0,0,0.1))',
                             borderRadius: '4px',
-                            background: 'transparent',
-                            cursor: readOnly ? 'default' : 'pointer',
+                            border: '1px solid var(--card-border-color, rgba(0,0,0,0.1))',
+                            background:
+                              comboLowColor && comboHighColor
+                                ? teeSplitBackground(comboLowColor, comboHighColor)
+                                : 'transparent',
                           }}
                         />
                       </Box>
-                    </Box>
+                    ) : (
+                      <Box>
+                        <Label size={0} muted>
+                          Color
+                        </Label>
+                        <Box
+                          as="label"
+                          style={{
+                            display: 'block',
+                            cursor: readOnly ? 'default' : 'pointer',
+                          }}
+                        >
+                          <input
+                            type="color"
+                            value={resolveTeeColor(teeSet.color, teeIndex)}
+                            onChange={(event) =>
+                              setTeeSetField(teeIndex, 'color', event.currentTarget.value)
+                            }
+                            disabled={readOnly}
+                            aria-label={`Color for ${teeSet.name?.trim() || `tee ${teeIndex + 1}`}`}
+                            style={{
+                              display: 'block',
+                              width: '2.5rem',
+                              height: '2.25rem',
+                              padding: 0,
+                              border: '1px solid var(--card-border-color, rgba(0,0,0,0.1))',
+                              borderRadius: '4px',
+                              background: 'transparent',
+                              cursor: readOnly ? 'default' : 'pointer',
+                            }}
+                          />
+                        </Box>
+                      </Box>
+                    )}
                   </Flex>
                 </Box>
+
+                {teeSet.isCombo && comboPair ? (
+                  <Stack space={2}>
+                    <Label size={0} muted>
+                      Combo of tee #s
+                    </Label>
+                    <Flex gap={2}>
+                      <Box flex={1}>
+                        <Select
+                          fontSize={1}
+                          padding={2}
+                          value={String(comboPair.low)}
+                          disabled={readOnly}
+                          onChange={(event) =>
+                            setComboPairField(
+                              teeIndex,
+                              'low',
+                              Number(event.currentTarget.value),
+                            )
+                          }
+                        >
+                          {womenTeeOptions.map((num) => (
+                            <option key={`low-${num}`} value={num}>
+                              #{num}
+                            </option>
+                          ))}
+                        </Select>
+                      </Box>
+                      <Box flex={1}>
+                        <Select
+                          fontSize={1}
+                          padding={2}
+                          value={String(comboPair.high)}
+                          disabled={readOnly}
+                          onChange={(event) =>
+                            setComboPairField(
+                              teeIndex,
+                              'high',
+                              Number(event.currentTarget.value),
+                            )
+                          }
+                        >
+                          {womenTeeOptions.map((num) => (
+                            <option key={`high-${num}`} value={num}>
+                              #{num}
+                            </option>
+                          ))}
+                        </Select>
+                      </Box>
+                    </Flex>
+                    <Box>
+                      <Label size={0} muted>
+                        Available for
+                      </Label>
+                      <Select
+                        fontSize={1}
+                        padding={2}
+                        value={teeSet.availableFor ?? 'both'}
+                        disabled={readOnly}
+                        onChange={(event) =>
+                          setComboAvailableFor(
+                            teeIndex,
+                            event.currentTarget.value as ComboAvailableFor,
+                          )
+                        }
+                      >
+                        <option value="both">Both</option>
+                        <option value="men">Men&apos;s only</option>
+                        <option value="women">Women&apos;s only</option>
+                      </Select>
+                    </Box>
+                  </Stack>
+                ) : (
+                  <Box>
+                    <Label size={0} muted>
+                      Tee # (1 = shortest)
+                    </Label>
+                    <Select
+                      fontSize={1}
+                      padding={2}
+                      value={String(teeSet.teeNumber ?? teeIndex + 1)}
+                      disabled={readOnly}
+                      onChange={(event) =>
+                        setTeeNumber(teeIndex, Number(event.currentTarget.value))
+                      }
+                    >
+                      {womenTeeOptions.map((num) => (
+                        <option key={`tee-num-${num}`} value={num}>
+                          {num}
+                        </option>
+                      ))}
+                    </Select>
+                  </Box>
+                )}
+
                 <Box>
                   <Label size={0} muted>
                     Total yards
@@ -713,7 +1225,8 @@ export function ScorecardEditor(props: ObjectInputProps) {
               row={row}
               holeIndex={holeIndex}
               holeCount={holeCount}
-              teeCount={display.teeCount}
+              teeCount={columnCount}
+              visibleTeeIndices={visibleTeeIndices}
               editorGender={editorGender}
               holeFieldCount={holeFieldCount}
               readOnly={!!readOnly}
@@ -732,10 +1245,11 @@ export function ScorecardEditor(props: ObjectInputProps) {
           <Text size={1} weight="semibold" style={{ alignSelf: 'center' }}>
             Total
           </Text>
-          {display.teeSets.map((teeSet, teeIndex) => {
+          {visibleTeeIndices.map((teeIndex) => {
+            const teeSet = display.teeSets[teeIndex]
             const computed = sumParForTeeColumn(
               display.holes,
-              display.teeCount,
+              columnCount,
               teeIndex,
               editorGender,
             )
@@ -764,6 +1278,7 @@ function ScorecardGridRow({
   holeIndex,
   holeCount,
   teeCount,
+  visibleTeeIndices,
   editorGender,
   holeFieldCount,
   readOnly,
@@ -775,6 +1290,7 @@ function ScorecardGridRow({
   holeIndex: number
   holeCount: number
   teeCount: number
+  visibleTeeIndices: number[]
   editorGender: ScorecardGender
   holeFieldCount: number
   readOnly: boolean
@@ -783,13 +1299,16 @@ function ScorecardGridRow({
   onTeeHandicapChange: (teeIndex: number, value: string) => void
 }) {
   const tees = syncTeeEntries(teeCount, row.tees ?? [])
+  const visibleColumnCount = visibleTeeIndices.length
 
   return (
     <>
       <Text size={1} muted style={{ fontVariantNumeric: 'tabular-nums' }}>
         {row.holeNumber}
       </Text>
-      {tees.map((tee, teeIndex) => (
+      {visibleTeeIndices.map((teeIndex, visualIndex) => {
+        const tee = tees[teeIndex]
+        return (
         <Fragment key={`${row.holeNumber}-tee-${teeIndex}`}>
           <TextInput
             value={normalizePar(tee.par)[editorGender]}
@@ -798,7 +1317,13 @@ function ScorecardGridRow({
             onKeyDown={(event) =>
               handleHoleFieldTabKey(
                 event,
-                holeFieldTabOrder(holeIndex, holeCount, teeCount, 'par', teeIndex),
+                holeFieldTabOrder(
+                  holeIndex,
+                  holeCount,
+                  visibleColumnCount,
+                  'par',
+                  visualIndex,
+                ),
                 holeFieldCount,
               )
             }
@@ -808,9 +1333,9 @@ function ScorecardGridRow({
             data-scorecard-tab-order={holeFieldTabOrder(
               holeIndex,
               holeCount,
-              teeCount,
+              visibleColumnCount,
               'par',
-              teeIndex,
+              visualIndex,
             )}
           />
           <TextInput
@@ -822,7 +1347,13 @@ function ScorecardGridRow({
             onKeyDown={(event) =>
               handleHoleFieldTabKey(
                 event,
-                holeFieldTabOrder(holeIndex, holeCount, teeCount, 'yardage', teeIndex),
+                holeFieldTabOrder(
+                  holeIndex,
+                  holeCount,
+                  visibleColumnCount,
+                  'yardage',
+                  visualIndex,
+                ),
                 holeFieldCount,
               )
             }
@@ -832,9 +1363,9 @@ function ScorecardGridRow({
             data-scorecard-tab-order={holeFieldTabOrder(
               holeIndex,
               holeCount,
-              teeCount,
+              visibleColumnCount,
               'yardage',
-              teeIndex,
+              visualIndex,
             )}
           />
           <TextInput
@@ -846,7 +1377,13 @@ function ScorecardGridRow({
             onKeyDown={(event) =>
               handleHoleFieldTabKey(
                 event,
-                holeFieldTabOrder(holeIndex, holeCount, teeCount, 'handicap', teeIndex),
+                holeFieldTabOrder(
+                  holeIndex,
+                  holeCount,
+                  visibleColumnCount,
+                  'handicap',
+                  visualIndex,
+                ),
                 holeFieldCount,
               )
             }
@@ -856,13 +1393,13 @@ function ScorecardGridRow({
             data-scorecard-tab-order={holeFieldTabOrder(
               holeIndex,
               holeCount,
-              teeCount,
+              visibleColumnCount,
               'handicap',
-              teeIndex,
+              visualIndex,
             )}
           />
         </Fragment>
-      ))}
+      )})}
     </>
   )
 }
