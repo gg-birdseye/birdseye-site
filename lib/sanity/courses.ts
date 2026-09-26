@@ -822,16 +822,61 @@ export function scorecardTeeVisibleForGender(
   return true;
 }
 
-/** Tees visible for a gender, preserving source indices into `data.tees`. */
+/** Tees visible for a gender, with combo tees inserted between their paired tee numbers. */
 export function scorecardTeesForGender(
   data: CourseScorecardData,
   gender: ScorecardGender,
 ): Array<{ tee: ScorecardTeeData; index: number }> {
-  return data.tees
+  const visible = data.tees
     .map((tee, index) => ({ tee, index }))
     .filter(({ tee }) =>
       scorecardTeeVisibleForGender(tee, gender, data.teeCountWomen),
     );
+
+  const standards = visible.filter(({ tee }) => !tee.isCombo);
+  const combos = visible.filter(({ tee }) => tee.isCombo);
+  if (!combos.length) return standards;
+
+  // Insert lower midpoints first so later inserts stay between the correct parents.
+  const orderedCombos = [...combos].sort((a, b) => {
+    const midA =
+      ((a.tee.comboTeeNumbers?.low ?? 0) + (a.tee.comboTeeNumbers?.high ?? 0)) / 2;
+    const midB =
+      ((b.tee.comboTeeNumbers?.low ?? 0) + (b.tee.comboTeeNumbers?.high ?? 0)) / 2;
+    if (midA !== midB) return midA - midB;
+    return a.index - b.index;
+  });
+
+  const result = [...standards];
+  for (const combo of orderedCombos) {
+    const low = combo.tee.comboTeeNumbers?.low;
+    const high = combo.tee.comboTeeNumbers?.high;
+    const posLow =
+      typeof low === "number"
+        ? result.findIndex(
+            ({ tee }) => !tee.isCombo && tee.teeNumber === low,
+          )
+        : -1;
+    const posHigh =
+      typeof high === "number"
+        ? result.findIndex(
+            ({ tee }) => !tee.isCombo && tee.teeNumber === high,
+          )
+        : -1;
+
+    if (posLow >= 0 && posHigh >= 0) {
+      // Place after whichever of the two parents appears first in the bar.
+      result.splice(Math.min(posLow, posHigh) + 1, 0, combo);
+    } else if (posLow >= 0) {
+      result.splice(posLow + 1, 0, combo);
+    } else if (posHigh >= 0) {
+      result.splice(posHigh, 0, combo);
+    } else {
+      result.push(combo);
+    }
+  }
+
+  return result;
 }
 
 function holeTeeEntries(

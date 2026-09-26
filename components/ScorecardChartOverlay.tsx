@@ -39,6 +39,8 @@ export type ScorecardChartTeeOption = {
   color: string;
   /** Higher tee # color for combo split backgrounds. */
   colorSecondary?: string;
+  /** Combo tees appear on the scorecard only, not the aerial hole tee menu. */
+  isCombo?: boolean;
 };
 
 export type ScorecardChartGender = "men" | "women";

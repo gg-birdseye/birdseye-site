@@ -804,6 +804,7 @@ export function ExampleCourseView({
         colorSecondary: tee.colorSecondary
           ? resolveTeeColor(tee.colorSecondary, index, accentColor)
           : undefined,
+        isCombo: Boolean(tee.isCombo),
       };
     });
   }, [
@@ -1212,7 +1213,10 @@ export function ExampleCourseView({
         activeHole={activeHole}
         onHoleSelect={(hole) => {
           goToHole(hole);
-          setPanelOpen(null);
+          setAerialViewMode("hole");
+          trackCourseEvent("aerial_mode_change", analyticsCourse, {
+            aerial_mode: "hole",
+          });
         }}
         onEnterHoleView={() => {
           setAerialViewMode("hole");
@@ -1235,7 +1239,7 @@ export function ExampleCourseView({
         cameraPath={cameraPathMap.get(activeHole)}
         landingZone={landingZoneMap.get(activeHole)}
         selectedTeeIndex={selectedTee}
-        teeOptions={teeOptions}
+        teeOptions={teeOptions.filter((option) => !option.isCombo)}
         onTeeSelect={setSelectedTee}
         flyoverProgress={flyoverProgress}
         onPathSeek={goToFlyoverProgress}

@@ -233,12 +233,14 @@ export function HoleSelectorOverlay({
     </button>
   );
 
-  // Hide the fixed toggle when it would sit on top of the mosaic (landscape
-  // open grid, or portrait immersive grid). Selecting a hole closes the grid.
+  // Hide the fixed toggle when it would sit on top of the mosaic (explicitly
+  // opened grid on any layout, landscape open grid, or portrait immersive grid).
+  // Selecting a hole or tapping the backdrop closes the grid and restores it.
   const hideFixedToggleOverGrid =
-    showGrid &&
-    ((isMobileLandscape && !isMobilePortrait) ||
-      (isMobilePortrait && isFullscreen));
+    open ||
+    (showGrid &&
+      ((isMobileLandscape && !isMobilePortrait) ||
+        (isMobilePortrait && isFullscreen)));
 
   return (
     <>

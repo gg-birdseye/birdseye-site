@@ -16,7 +16,7 @@ import {
   pointerToMediaPercent,
   type ContainedMediaRect,
 } from '../../lib/aerial-map-geometry'
-import { resolveTeeColor, teeSplitBackground } from '../../lib/constants/teeColors'
+import { resolveTeeColor } from '../../lib/constants/teeColors'
 import {
   GREEN_EDGE_LABELS,
   GREEN_EDGE_SIDES,
@@ -57,14 +57,10 @@ type HoleGraphicFileValue = {
 
 type ScorecardDoc = {
   teeCount?: number | null
-  hasComboTees?: boolean | null
-  comboTeeCount?: number | null
   teeSets?: Array<{
     name?: string | null
     color?: string | null
     isCombo?: boolean | null
-    teeNumber?: number | null
-    comboTeeNumbers?: { low?: number | null; high?: number | null } | null
   } | null> | null
 } | null
 
@@ -170,60 +166,28 @@ export function LandingZoneEditor(props: ObjectInputProps) {
 
   const teeOptions = useMemo(() => {
     const standardCount = Math.min(6, Math.max(1, scorecard?.teeCount ?? 3))
-    const comboCount =
-      scorecard?.hasComboTees
-        ? Math.min(4, Math.max(1, scorecard?.comboTeeCount ?? 1))
-        : 0
-    const count = Math.max(
-      standardCount + comboCount,
-      scorecard?.teeSets?.length ?? 0,
-      3,
-    )
-
-    const colorByTeeNumber = new Map<number, string>()
-    for (let index = 0; index < standardCount; index += 1) {
+    // Combo tees are scorecard-only — never offered for aerial tee placement.
+    return Array.from({ length: standardCount }, (_, index) => {
       const setDoc = scorecard?.teeSets?.[index]
-      if (setDoc?.isCombo) continue
-      const teeNumber =
-        typeof setDoc?.teeNumber === 'number' && Number.isFinite(setDoc.teeNumber)
-          ? Math.round(setDoc.teeNumber)
-          : index + 1
-      colorByTeeNumber.set(teeNumber, resolveTeeColor(setDoc?.color, index))
-    }
-
-    return Array.from({ length: count }, (_, index) => {
-      const setDoc = scorecard?.teeSets?.[index]
-      const isCombo = Boolean(setDoc?.isCombo) || index >= standardCount
-      const name = setDoc?.name?.trim() || (isCombo ? `Combo ${index - standardCount + 1}` : `Tee ${index + 1}`)
-
-      if (isCombo) {
-        const lowRaw = setDoc?.comboTeeNumbers?.low
-        const highRaw = setDoc?.comboTeeNumbers?.high
-        const low =
-          typeof lowRaw === 'number' && Number.isFinite(lowRaw) ? Math.round(lowRaw) : 1
-        const high =
-          typeof highRaw === 'number' && Number.isFinite(highRaw)
-            ? Math.round(highRaw)
-            : Math.min(2, standardCount)
-        const colorLow =
-          colorByTeeNumber.get(low) ?? resolveTeeColor(undefined, Math.max(0, low - 1))
-        const colorHigh =
-          colorByTeeNumber.get(high) ?? resolveTeeColor(undefined, Math.max(0, high - 1))
-        return {
-          index,
-          name,
-          color: colorLow,
-          colorSecondary: colorHigh,
-        }
+      if (setDoc?.isCombo) {
+        return null
       }
-
       return {
         index,
-        name,
+        name: setDoc?.name?.trim() || `Tee ${index + 1}`,
         color: resolveTeeColor(setDoc?.color, index),
       }
-    })
+    }).filter((option): option is { index: number; name: string; color: string } =>
+      Boolean(option),
+    )
   }, [scorecard])
+
+  useEffect(() => {
+    if (!teeOptions.length) return
+    if (!teeOptions.some((option) => option.index === selectedTeeIndex)) {
+      setSelectedTeeIndex(teeOptions[0].index)
+    }
+  }, [selectedTeeIndex, teeOptions])
 
   useEffect(() => {
     setPendingYards(suggestNextYardage(markers.map((m) => m.yards)))
@@ -643,17 +607,7 @@ export function LandingZoneEditor(props: ObjectInputProps) {
                 tone={selectedTeeIndex === option.index ? 'primary' : 'default'}
                 style={
                   selectedTeeIndex === option.index
-                    ? {
-                        ...(option.colorSecondary
-                          ? {
-                              backgroundImage: teeSplitBackground(
-                                option.color,
-                                option.colorSecondary,
-                              ),
-                            }
-                          : { backgroundColor: option.color }),
-                        borderColor: option.color,
-                      }
+                    ? { backgroundColor: option.color, borderColor: option.color }
                     : { borderColor: option.color }
                 }
                 onClick={() => setSelectedTeeIndex(option.index)}
@@ -902,14 +856,7 @@ export function LandingZoneEditor(props: ObjectInputProps) {
                         marginTop: -7,
                         borderRadius: '9999px',
                         border: '2px solid #fff',
-                        ...(option?.colorSecondary
-                          ? {
-                              backgroundImage: teeSplitBackground(
-                                option.color,
-                                option.colorSecondary,
-                              ),
-                            }
-                          : { background: option?.color ?? '#CF8018' }),
+                        background: option?.color ?? '#CF8018',
                         cursor: 'grab',
                         zIndex: 3,
                       }}
