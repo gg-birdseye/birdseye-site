@@ -391,7 +391,7 @@ export function HoleGraphicPanel({
           >
             The distance information depicted on this page may not be entirely
             accurate. This web tool uses calculations to estimate distances and
-            should not be treated as actual GPS data.
+            may vary from actual GPS data.
           </div>
         ) : null}
       </div>

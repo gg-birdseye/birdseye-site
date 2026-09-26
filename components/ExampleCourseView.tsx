@@ -1128,24 +1128,24 @@ export function ExampleCourseView({
             aria-label={`${courseTitle} website`}
           >
             {videoLogoSrc === "/example-course-logo.svg" ? (
-              <ExampleCourseLogo className="course-video-logo-image h-full w-full" />
+              <ExampleCourseLogo className="course-video-logo-image" />
             ) : (
               <img
                 src={videoLogoSrc}
                 alt={courseTitle}
-                className="course-video-logo-image h-full w-full object-contain object-left-bottom"
+                className="course-video-logo-image"
               />
             )}
           </a>
         ) : (
           <div className="course-video-logo pointer-events-none">
             {videoLogoSrc === "/example-course-logo.svg" ? (
-              <ExampleCourseLogo className="course-video-logo-image h-full w-full" />
+              <ExampleCourseLogo className="course-video-logo-image" />
             ) : (
               <img
                 src={videoLogoSrc}
                 alt={courseTitle}
-                className="course-video-logo-image h-full w-full object-contain object-left-bottom"
+                className="course-video-logo-image"
               />
             )}
           </div>
