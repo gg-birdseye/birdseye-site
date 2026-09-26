@@ -11,7 +11,7 @@ import { ExampleCourseLogo } from "@/components/ExampleCourseLogo";
 import { AerialPanelOverlay } from "@/components/AerialPanelOverlay";
 import { HoleGraphicPanel } from "@/components/HoleGraphicPanel";
 import { CoursePanelOverlay } from "@/components/CoursePanelOverlay";
-import { ScorecardChartOverlay, type ScorecardChartTee } from "@/components/ScorecardChartOverlay";
+import { ScorecardChartOverlay, type ScorecardChartTee, type ScorecardChartTeeOption } from "@/components/ScorecardChartOverlay";
 import {
   ScorecardMobileDataOverlay,
   type ScorecardMobileTee,
@@ -763,7 +763,7 @@ export function ExampleCourseView({
     showScorecardGenderToggle,
   ]);
 
-  const teeOptions = useMemo(() => {
+  const teeOptions = useMemo((): ScorecardChartTeeOption[] => {
     if (demoScorecard) {
       const demoRatings = [
         { courseRating: "68.2", slopeRating: "120" },
@@ -785,6 +785,7 @@ export function ExampleCourseView({
         courseRating: demoRatings[index]?.courseRating,
         slopeRating: demoRatings[index]?.slopeRating,
         color,
+        isCombo: false,
       }));
     }
     if (!scorecardData) return [];
