@@ -1077,7 +1077,7 @@ export function ScorecardChartOverlay({
                     option.slopeRating,
                   );
                   const selectedLabelColor = isSelected
-                    ? teeSelectedLabelColor(option.color)
+                    ? teeSelectedLabelColor(option.color, option.colorSecondary)
                     : undefined;
                   const selectedStyle = isSelected
                     ? {

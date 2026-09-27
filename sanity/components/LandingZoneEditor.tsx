@@ -57,10 +57,13 @@ type HoleGraphicFileValue = {
 
 type ScorecardDoc = {
   teeCount?: number | null
+  hasComboTees?: boolean | null
+  comboTeeCount?: number | null
   teeSets?: Array<{
     name?: string | null
     color?: string | null
     isCombo?: boolean | null
+    comboTeeNumbers?: { low?: number | null; high?: number | null } | null
   } | null> | null
 } | null
 
@@ -165,21 +168,27 @@ export function LandingZoneEditor(props: ObjectInputProps) {
   const greenEdges = (value?.greenEdges ?? []) as GreenEdgeItem[]
 
   const teeOptions = useMemo(() => {
+    const sets = scorecard?.teeSets ?? []
     const standardCount = Math.min(6, Math.max(1, scorecard?.teeCount ?? 3))
-    // Combo tees are scorecard-only — never offered for aerial tee placement.
-    return Array.from({ length: standardCount }, (_, index) => {
-      const setDoc = scorecard?.teeSets?.[index]
-      if (setDoc?.isCombo) {
-        return null
-      }
-      return {
+    // Combo columns are scorecard-only — aerial tee markers use standard boxes
+    // only. Per-hole comboSourceTeeNumber resolves which standard tee to show.
+    const options: Array<{ index: number; name: string; color: string }> = []
+    for (let index = 0; index < standardCount; index += 1) {
+      const setDoc = sets[index]
+      if (setDoc?.isCombo || setDoc?.comboTeeNumbers) continue
+      options.push({
         index,
         name: setDoc?.name?.trim() || `Tee ${index + 1}`,
         color: resolveTeeColor(setDoc?.color, index),
-      }
-    }).filter((option): option is { index: number; name: string; color: string } =>
-      Boolean(option),
-    )
+      })
+    }
+    if (options.length > 0) return options
+    // Fallback when tee sets are empty / not yet configured
+    return Array.from({ length: standardCount }, (_, index) => ({
+      index,
+      name: `Tee ${index + 1}`,
+      color: resolveTeeColor(undefined, index),
+    }))
   }, [scorecard])
 
   useEffect(() => {
@@ -457,6 +466,7 @@ export function LandingZoneEditor(props: ObjectInputProps) {
       }
 
       if (tool === 'tee') {
+        if (!teeOptions.some((option) => option.index === selectedTeeIndex)) return
         upsertTee(selectedTeeIndex, coords)
         return
       }
@@ -497,6 +507,7 @@ export function LandingZoneEditor(props: ObjectInputProps) {
       pendingYardsFromTee,
       selectedGreenEdgeSide,
       selectedTeeIndex,
+      teeOptions,
       tees.length,
       tool,
       upsertGreenEdge,
@@ -834,12 +845,14 @@ export function LandingZoneEditor(props: ObjectInputProps) {
             {mediaRect
               ? tees.map((tee, index) => {
                   const option = teeOptions.find((item) => item.index === tee.teeIndex)
+                  // Skip markers for combo tee indexes — combos are not placeable.
+                  if (!option) return null
                   return (
                     <button
                       key={tee._key}
                       type="button"
-                      aria-label={option?.name ?? `Tee ${tee.teeIndex + 1}`}
-                      title={option?.name ?? `Tee ${tee.teeIndex + 1}`}
+                      aria-label={option.name}
+                      title={option.name}
                       onPointerDown={(event) => {
                         event.stopPropagation()
                         event.currentTarget.setPointerCapture(event.pointerId)
@@ -856,7 +869,7 @@ export function LandingZoneEditor(props: ObjectInputProps) {
                         marginTop: -7,
                         borderRadius: '9999px',
                         border: '2px solid #fff',
-                        background: option?.color ?? '#CF8018',
+                        background: option.color,
                         cursor: 'grab',
                         zIndex: 3,
                       }}

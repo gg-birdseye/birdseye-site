@@ -36,7 +36,13 @@ type HoleGraphicPanelProps = {
   holeGraphic?: HoleGraphic;
   cameraPath?: CameraPathPoint[];
   landingZone?: LandingZoneData | null;
+  /** Scorecard tee column selected in the UI (may be a combo). */
   selectedTeeIndex?: number;
+  /**
+   * Standard tee index for landing-zone geometry. When omitted, falls back to
+   * selectedTeeIndex (correct for non-combo tees).
+   */
+  landingZoneTeeIndex?: number;
   teeOptions?: ScorecardChartTeeOption[];
   onTeeSelect?: (index: number) => void;
   flyoverProgress?: number;
@@ -55,6 +61,7 @@ export function HoleGraphicPanel({
   cameraPath,
   landingZone,
   selectedTeeIndex = 0,
+  landingZoneTeeIndex,
   teeOptions = [],
   onTeeSelect,
   flyoverProgress = 0,
@@ -338,7 +345,9 @@ export function HoleGraphicPanel({
       <LandingZoneOverlay
         contentRef={contentRef}
         landingZone={landingZone}
-        selectedTeeIndex={selectedTeeIndex}
+        selectedTeeIndex={
+          landingZoneTeeIndex != null ? landingZoneTeeIndex : selectedTeeIndex
+        }
         cameraPath={cameraPath}
         progress={flyoverProgress}
         onPathSeek={onPathSeek}

@@ -118,6 +118,11 @@ export type ScorecardTeeEntryDoc = {
   /** Legacy documents may store a plain string (men's). */
   par?: ScorecardGenderValuesDoc | string | null;
   yardage?: string | null;
+  /**
+   * For combo tee columns: which paired standard tee number this hole plays from
+   * (used for aerial landing-zone yardage).
+   */
+  comboSourceTeeNumber?: number | null;
   /** Stroke index; legacy documents may store a plain string (men's). */
   handicap?: ScorecardHandicapDoc | string | null;
 };
@@ -187,6 +192,11 @@ export type ScorecardTeeData = {
   /** 1 = shortest standard tee. */
   teeNumber?: number;
   comboTeeNumbers?: { low: number; high: number };
+  /**
+   * Combo only: 1-indexed by hole. Tee number (not column index) this hole
+   * plays from for aerial / landing-zone geometry.
+   */
+  comboSourceTeeNumbers?: number[];
   availableFor?: ScorecardComboAvailableFor;
   yardages: string[];
   /** Men's stroke index per hole (convenience; same as handicapsByGender.men). */
@@ -1118,6 +1128,47 @@ export function scorecardTeeForGender(
   };
 }
 
+/**
+ * Map the selected scorecard tee column to the standard tee index used by
+ * aerial landing-zone geometry. Combo tees resolve via per-hole source tee #.
+ */
+export function resolveAerialTeeIndex(
+  scorecard: CourseScorecardData | null | undefined,
+  selectedTeeIndex: number,
+  holeNumber: number,
+): number {
+  if (!scorecard?.tees?.length) return Math.max(0, selectedTeeIndex);
+  const tee = scorecard.tees[selectedTeeIndex];
+  if (!tee?.isCombo) {
+    return Math.max(0, Math.min(selectedTeeIndex, scorecard.tees.length - 1));
+  }
+
+  const pair = tee.comboTeeNumbers;
+  const raw = tee.comboSourceTeeNumbers?.[holeNumber];
+  let sourceNum =
+    typeof raw === "number" && Number.isFinite(raw) ? Math.round(raw) : undefined;
+  if (
+    sourceNum == null ||
+    !pair ||
+    (sourceNum !== pair.low && sourceNum !== pair.high)
+  ) {
+    sourceNum = pair?.low;
+  }
+  if (sourceNum == null) {
+    return 0;
+  }
+
+  const standardIndex = scorecard.tees.findIndex(
+    (candidate) => !candidate.isCombo && candidate.teeNumber === sourceNum,
+  );
+  if (standardIndex >= 0) return standardIndex;
+
+  return Math.max(
+    0,
+    Math.min(scorecard.standardTeeCount - 1, sourceNum - 1),
+  );
+}
+
 /** Per-hole yardages and handicaps for the scorecard panel (1-indexed arrays). */
 export function courseScorecardData(
   course: CourseDoc | null,
@@ -1163,6 +1214,7 @@ export function courseScorecardData(
         colorSecondary: colorHigh,
         isCombo: true,
         comboTeeNumbers: pair,
+        comboSourceTeeNumbers: Array.from({ length: holeCount + 1 }, () => pair.low),
         availableFor: resolveComboAvailableFor(set.availableFor),
         yardages: [...holeArrays.yardages],
         handicaps: [...holeArrays.handicaps],
@@ -1242,6 +1294,19 @@ export function courseScorecardData(
       const menHandicap = resolveEntryHandicap(entry, "men");
       const womenHandicap = resolveEntryHandicap(entry, "women");
       if (yardage) tees[teeIndex].yardages[n] = yardage;
+      if (tees[teeIndex].isCombo && tees[teeIndex].comboSourceTeeNumbers) {
+        const pair = tees[teeIndex].comboTeeNumbers;
+        const raw = entry.comboSourceTeeNumber;
+        const source =
+          typeof raw === "number" && Number.isFinite(raw) ? Math.round(raw) : undefined;
+        if (
+          source != null &&
+          pair &&
+          (source === pair.low || source === pair.high)
+        ) {
+          tees[teeIndex].comboSourceTeeNumbers![n] = source;
+        }
+      }
       if (menPar) {
         tees[teeIndex].pars[n] = menPar;
         tees[teeIndex].parsByGender.men[n] = menPar;
@@ -1453,6 +1518,7 @@ const courseScorecardProjection = `
           women
         },
         yardage,
+        comboSourceTeeNumber,
         handicap {
           men,
           women

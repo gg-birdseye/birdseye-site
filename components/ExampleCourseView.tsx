@@ -18,6 +18,7 @@ import {
 } from "@/components/ScorecardMobileDataOverlay";
 import { ScrollyVideoSection } from "@/components/ScrollyVideoSection";
 import {
+  resolveAerialTeeIndex,
   scorecardDisplayTotalPar,
   scorecardParsForGender,
   scorecardTeeForGender,
@@ -832,8 +833,19 @@ export function ExampleCourseView({
     yardages,
   ]);
 
+  const selectedTeeOption = useMemo(
+    () => teeOptions.find((option) => option.index === selectedTee),
+    [selectedTee, teeOptions],
+  );
+
   const selectedTeeColor =
-    teeOptions[selectedTee]?.color ?? resolveTeeColor(undefined, selectedTee, accentColor);
+    selectedTeeOption?.color ??
+    resolveTeeColor(undefined, selectedTee, accentColor);
+
+  const aerialTeeIndex = useMemo(
+    () => resolveAerialTeeIndex(scorecardData, selectedTee, activeHole),
+    [activeHole, scorecardData, selectedTee],
+  );
 
   const selectedTeeTotalPar = useMemo(() => {
     if (demoScorecard) {
@@ -1177,7 +1189,7 @@ export function ExampleCourseView({
           selectedTee={selectedTee}
           onTeeSelect={setSelectedTee}
           onClose={() => setPanelOpen(null)}
-          totalPar={selectedTeeTotalPar ?? teeOptions[selectedTee]?.totalPar}
+          totalPar={selectedTeeTotalPar ?? selectedTeeOption?.totalPar}
         />
       ) : (
         <ScorecardChartOverlay
@@ -1194,7 +1206,7 @@ export function ExampleCourseView({
           showGenderToggle={showScorecardGenderToggle}
           scorecardGender={scorecardGender}
           onGenderChange={setScorecardGender}
-          totalPar={selectedTeeTotalPar ?? teeOptions[selectedTee]?.totalPar}
+          totalPar={selectedTeeTotalPar ?? selectedTeeOption?.totalPar}
           allTeeYardages={allTeeYardages}
         />
       )}
@@ -1241,7 +1253,8 @@ export function ExampleCourseView({
         cameraPath={cameraPathMap.get(activeHole)}
         landingZone={landingZoneMap.get(activeHole)}
         selectedTeeIndex={selectedTee}
-        teeOptions={teeOptions.filter((option) => !option.isCombo)}
+        landingZoneTeeIndex={aerialTeeIndex}
+        teeOptions={teeOptions}
         onTeeSelect={setSelectedTee}
         flyoverProgress={flyoverProgress}
         onPathSeek={goToFlyoverProgress}

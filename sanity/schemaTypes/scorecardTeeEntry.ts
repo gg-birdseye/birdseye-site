@@ -18,6 +18,14 @@ export default defineType({
       type: 'string',
     }),
     defineField({
+      name: 'comboSourceTeeNumber',
+      title: 'Combo source tee #',
+      type: 'number',
+      description:
+        'For combo tee columns: which paired standard tee # this hole plays from (aerial yardage / landing zone).',
+      validation: (Rule) => Rule.integer().min(1).max(6),
+    }),
+    defineField({
       name: 'handicap',
       title: 'Stroke index',
       type: 'object',

@@ -50,13 +50,26 @@ export function teeColorLuminance(color: string): number | null {
 }
 
 /**
- * Label color for a selected tee tab filled with `color`.
- * Light tees (white, cream, etc.) get dark text so yardage/rating stay readable.
+ * Label color for a selected tee tab filled with `color` (and optional
+ * combo `colorSecondary`). Uses the lighter fill so text stays readable on
+ * both halves of a split (e.g. white/silver → black, never white-on-white).
  */
-export function teeSelectedLabelColor(color: string): "#111111" | "#ffffff" {
-  const luminance = teeColorLuminance(color);
+export function teeSelectedLabelColor(
+  color: string,
+  colorSecondary?: string | null,
+): "#111111" | "#ffffff" {
+  const primary = teeColorLuminance(color);
+  const secondary = colorSecondary
+    ? teeColorLuminance(colorSecondary)
+    : null;
+  const luminance =
+    primary == null
+      ? secondary
+      : secondary == null
+        ? primary
+        : Math.max(primary, secondary);
   if (luminance == null) return "#ffffff";
-  // Prefer white text when it still meets ~3:1 contrast against the tee fill.
+  // Prefer white text when it still meets ~3:1 contrast against the lightest fill.
   const contrastWithWhite = (1.0 + 0.05) / (luminance + 0.05);
   return contrastWithWhite >= 3 ? "#ffffff" : "#111111";
 }

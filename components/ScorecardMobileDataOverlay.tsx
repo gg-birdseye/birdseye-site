@@ -144,7 +144,7 @@ export function ScorecardMobileDataOverlay({
                 option.slopeRating,
               );
               const selectedLabelColor = isSelected
-                ? teeSelectedLabelColor(option.color)
+                ? teeSelectedLabelColor(option.color, option.colorSecondary)
                 : undefined;
               const selectedStyle = isSelected
                 ? {

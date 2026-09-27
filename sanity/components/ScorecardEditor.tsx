@@ -32,6 +32,8 @@ type GenderRatings = {
 type TeeEntry = {
   par?: { men?: string; women?: string } | string
   yardage?: string
+  /** For combo columns: which paired standard tee # this hole plays from. */
+  comboSourceTeeNumber?: number
   handicap?: { men?: string; women?: string } | string
 }
 
@@ -275,30 +277,55 @@ function syncTeeEntries(
   count: number,
   existing: TeeEntry[] = [],
   holePar?: { men: string; women: string },
+  comboPairs?: Array<{ low: number; high: number } | null | undefined>,
 ): TeeEntry[] {
   return Array.from({ length: count }, (_, index) => {
     const prev = existing[index]
     const par = normalizePar(prev?.par)
     const hasPar = Boolean(par.men.trim() || par.women.trim())
     const fallback = !hasPar && holePar ? holePar : undefined
-    return {
+    const pair = comboPairs?.[index]
+    const entry: TeeEntry = {
       par: fallback ?? par,
       yardage: prev?.yardage ?? '',
       handicap: normalizeHandicap(prev?.handicap),
     }
+    if (pair?.low != null && pair?.high != null) {
+      const low = pair.low
+      const high = pair.high
+      const prevSource = prev?.comboSourceTeeNumber
+      entry.comboSourceTeeNumber =
+        typeof prevSource === 'number' &&
+        (prevSource === low || prevSource === high)
+          ? prevSource
+          : low
+    }
+    return entry
   })
+}
+
+function comboPairsForSets(
+  teeSets: TeeSet[],
+  standardCount: number,
+): Array<{ low: number; high: number } | null> {
+  return teeSets.map((set) =>
+    set.isCombo ? normalizeComboPair(set.comboTeeNumbers, standardCount) : null,
+  )
 }
 
 function buildHoleSlots(
   holeCount: number,
   columnCount: number,
   existing: HoleItem[] = [],
+  teeSets: TeeSet[] = [],
+  standardCount = columnCount,
 ): HoleItem[] {
   const byNumber = new Map(
     existing
       .filter((item) => typeof item?.holeNumber === 'number')
       .map((item) => [item.holeNumber, item]),
   )
+  const pairs = comboPairsForSets(teeSets, standardCount)
 
   return Array.from({ length: holeCount }, (_, index) => {
     const holeNumber = index + 1
@@ -321,6 +348,7 @@ function buildHoleSlots(
       columnCount,
       prev?.tees?.length ? prev.tees : legacyTees,
       holePar,
+      pairs,
     )
 
     return {
@@ -357,12 +385,20 @@ function normalizeScorecard(
   const hasComboTees = Boolean(value?.hasComboTees)
   const comboTeeCount = clampComboTeeCount(hasComboTees, value?.comboTeeCount)
   const columnCount = totalTeeSlots(teeCount, comboTeeCount)
-  const holes = buildHoleSlots(holeCount, columnCount, value?.holes ?? [])
-  const teeSets = applyComputedTotalPars(
-    syncTeeSets(teeCount, comboTeeCount, value?.teeSets ?? [], value?.teeNames ?? []),
-    holes,
-    columnCount,
+  const teeSetsSynced = syncTeeSets(
+    teeCount,
+    comboTeeCount,
+    value?.teeSets ?? [],
+    value?.teeNames ?? [],
   )
+  const holes = buildHoleSlots(
+    holeCount,
+    columnCount,
+    value?.holes ?? [],
+    teeSetsSynced,
+    teeCount,
+  )
+  const teeSets = applyComputedTotalPars(teeSetsSynced, holes, columnCount)
   return {
     hasWomenRatings,
     teeCount,
@@ -397,8 +433,15 @@ function scorecardMatches(
 
   for (let holeIndex = 0; holeIndex < holeCount; holeIndex += 1) {
     const hole = value?.holes?.[holeIndex]
+    const normalizedHole = normalized.holes[holeIndex]
     if (hole?.holeNumber !== holeIndex + 1) return false
     if ((hole?.tees ?? []).length !== columnCount) return false
+    for (let teeIndex = 0; teeIndex < columnCount; teeIndex += 1) {
+      if (!normalized.teeSets[teeIndex]?.isCombo) continue
+      const storedSource = hole?.tees?.[teeIndex]?.comboSourceTeeNumber
+      const nextSource = normalizedHole?.tees?.[teeIndex]?.comboSourceTeeNumber
+      if (storedSource !== nextSource) return false
+    }
   }
 
   for (let teeIndex = 0; teeIndex < columnCount; teeIndex += 1) {
@@ -575,12 +618,9 @@ export function ScorecardEditor(props: ObjectInputProps) {
         overrides.comboTeeCount ?? base.comboTeeCount,
       )
       const cols = totalTeeSlots(teeCount, comboTeeCount)
-      const holes = buildHoleSlots(holeCount!, cols, base.holes)
-      const teeSets = applyComputedTotalPars(
-        syncTeeSets(teeCount, comboTeeCount, base.teeSets),
-        holes,
-        cols,
-      )
+      const teeSetsSynced = syncTeeSets(teeCount, comboTeeCount, base.teeSets)
+      const holes = buildHoleSlots(holeCount!, cols, base.holes, teeSetsSynced, teeCount)
+      const teeSets = applyComputedTotalPars(teeSetsSynced, holes, cols)
       return {
         ...base,
         hasWomenRatings,
@@ -706,7 +746,9 @@ export function ScorecardEditor(props: ObjectInputProps) {
         ...current,
         comboTeeNumbers: normalizeComboPair(pair, base.teeCount),
       }
-      commit({ ...base, teeSets })
+      const cols = totalTeeSlots(base.teeCount, base.hasComboTees ? base.comboTeeCount : 0)
+      const holes = buildHoleSlots(holeCount, cols, base.holes, teeSets, base.teeCount)
+      commit({ ...base, teeSets, holes })
     },
     [commit, holeCount, readOnly, value, withSyncedSets],
   )
@@ -752,10 +794,30 @@ export function ScorecardEditor(props: ObjectInputProps) {
       if (!holeCount || readOnly) return
       const base = normalizeScorecard(value, holeCount)
       const cols = totalTeeSlots(base.teeCount, base.hasComboTees ? base.comboTeeCount : 0)
+      const pairs = comboPairsForSets(base.teeSets, base.teeCount)
       const holes = base.holes.map((row) => {
         if (row.holeNumber !== holeNumber) return row
-        const tees = syncTeeEntries(cols, row.tees ?? [])
+        const tees = syncTeeEntries(cols, row.tees ?? [], undefined, pairs)
         tees[teeIndex] = { ...tees[teeIndex], [field]: fieldValue }
+        return { ...row, tees }
+      })
+      commit({ ...base, holes })
+    },
+    [commit, holeCount, readOnly, value],
+  )
+
+  const setComboSourceTeeNumber = useCallback(
+    (holeNumber: number, teeIndex: number, sourceTeeNumber: number) => {
+      if (!holeCount || readOnly) return
+      const base = normalizeScorecard(value, holeCount)
+      const cols = totalTeeSlots(base.teeCount, base.hasComboTees ? base.comboTeeCount : 0)
+      const pairs = comboPairsForSets(base.teeSets, base.teeCount)
+      const pair = pairs[teeIndex]
+      if (!pair || (sourceTeeNumber !== pair.low && sourceTeeNumber !== pair.high)) return
+      const holes = base.holes.map((row) => {
+        if (row.holeNumber !== holeNumber) return row
+        const tees = syncTeeEntries(cols, row.tees ?? [], undefined, pairs)
+        tees[teeIndex] = { ...tees[teeIndex], comboSourceTeeNumber: sourceTeeNumber }
         return { ...row, tees }
       })
       commit({ ...base, holes })
@@ -773,9 +835,10 @@ export function ScorecardEditor(props: ObjectInputProps) {
       if (!holeCount || readOnly) return
       const base = normalizeScorecard(value, holeCount)
       const cols = totalTeeSlots(base.teeCount, base.hasComboTees ? base.comboTeeCount : 0)
+      const pairs = comboPairsForSets(base.teeSets, base.teeCount)
       const holes = base.holes.map((row) => {
         if (row.holeNumber !== holeNumber) return row
-        const tees = syncTeeEntries(cols, row.tees ?? [])
+        const tees = syncTeeEntries(cols, row.tees ?? [], undefined, pairs)
         const handicap = normalizeHandicap(tees[teeIndex]?.handicap)
         handicap[gender] = fieldValue
         tees[teeIndex] = { ...tees[teeIndex], handicap }
@@ -796,9 +859,10 @@ export function ScorecardEditor(props: ObjectInputProps) {
       if (!holeCount || readOnly) return
       const base = normalizeScorecard(value, holeCount)
       const cols = totalTeeSlots(base.teeCount, base.hasComboTees ? base.comboTeeCount : 0)
+      const pairs = comboPairsForSets(base.teeSets, base.teeCount)
       const holes = base.holes.map((row) => {
         if (row.holeNumber !== holeNumber) return row
-        const tees = syncTeeEntries(cols, row.tees ?? [])
+        const tees = syncTeeEntries(cols, row.tees ?? [], undefined, pairs)
         const par = normalizePar(tees[teeIndex]?.par)
         par[gender] = fieldValue
         tees[teeIndex] = { ...tees[teeIndex], par }
@@ -1226,6 +1290,8 @@ export function ScorecardEditor(props: ObjectInputProps) {
               holeIndex={holeIndex}
               holeCount={holeCount}
               teeCount={columnCount}
+              teeSets={display.teeSets}
+              standardTeeCount={display.teeCount}
               visibleTeeIndices={visibleTeeIndices}
               editorGender={editorGender}
               holeFieldCount={holeFieldCount}
@@ -1238,6 +1304,9 @@ export function ScorecardEditor(props: ObjectInputProps) {
               }
               onTeeHandicapChange={(teeIndex, fieldValue) =>
                 setTeeHandicapField(row.holeNumber, teeIndex, editorGender, fieldValue)
+              }
+              onComboSourceChange={(teeIndex, sourceTeeNumber) =>
+                setComboSourceTeeNumber(row.holeNumber, teeIndex, sourceTeeNumber)
               }
             />
           ))}
@@ -1278,6 +1347,8 @@ function ScorecardGridRow({
   holeIndex,
   holeCount,
   teeCount,
+  teeSets,
+  standardTeeCount,
   visibleTeeIndices,
   editorGender,
   holeFieldCount,
@@ -1285,11 +1356,14 @@ function ScorecardGridRow({
   onTeeFieldChange,
   onTeeParChange,
   onTeeHandicapChange,
+  onComboSourceChange,
 }: {
   row: HoleItem
   holeIndex: number
   holeCount: number
   teeCount: number
+  teeSets: TeeSet[]
+  standardTeeCount: number
   visibleTeeIndices: number[]
   editorGender: ScorecardGender
   holeFieldCount: number
@@ -1297,8 +1371,10 @@ function ScorecardGridRow({
   onTeeFieldChange: (teeIndex: number, field: 'yardage', value: string) => void
   onTeeParChange: (teeIndex: number, value: string) => void
   onTeeHandicapChange: (teeIndex: number, value: string) => void
+  onComboSourceChange: (teeIndex: number, sourceTeeNumber: number) => void
 }) {
-  const tees = syncTeeEntries(teeCount, row.tees ?? [])
+  const pairs = comboPairsForSets(teeSets, standardTeeCount)
+  const tees = syncTeeEntries(teeCount, row.tees ?? [], undefined, pairs)
   const visibleColumnCount = visibleTeeIndices.length
 
   return (
@@ -1308,6 +1384,11 @@ function ScorecardGridRow({
       </Text>
       {visibleTeeIndices.map((teeIndex, visualIndex) => {
         const tee = tees[teeIndex]
+        const pair = pairs[teeIndex]
+        const source =
+          typeof tee.comboSourceTeeNumber === 'number'
+            ? tee.comboSourceTeeNumber
+            : pair?.low
         return (
         <Fragment key={`${row.holeNumber}-tee-${teeIndex}`}>
           <TextInput
@@ -1338,36 +1419,66 @@ function ScorecardGridRow({
               visualIndex,
             )}
           />
-          <TextInput
-            value={tee.yardage ?? ''}
-            onChange={(event) =>
-              onTeeFieldChange(teeIndex, 'yardage', event.currentTarget.value)
-            }
-            onFocus={selectAllOnFocus}
-            onKeyDown={(event) =>
-              handleHoleFieldTabKey(
-                event,
-                holeFieldTabOrder(
-                  holeIndex,
-                  holeCount,
-                  visibleColumnCount,
-                  'yardage',
-                  visualIndex,
-                ),
-                holeFieldCount,
-              )
-            }
-            readOnly={readOnly}
-            placeholder="352"
-            inputMode="numeric"
-            data-scorecard-tab-order={holeFieldTabOrder(
-              holeIndex,
-              holeCount,
-              visibleColumnCount,
-              'yardage',
-              visualIndex,
-            )}
-          />
+          <Stack space={1}>
+            <TextInput
+              value={tee.yardage ?? ''}
+              onChange={(event) =>
+                onTeeFieldChange(teeIndex, 'yardage', event.currentTarget.value)
+              }
+              onFocus={selectAllOnFocus}
+              onKeyDown={(event) =>
+                handleHoleFieldTabKey(
+                  event,
+                  holeFieldTabOrder(
+                    holeIndex,
+                    holeCount,
+                    visibleColumnCount,
+                    'yardage',
+                    visualIndex,
+                  ),
+                  holeFieldCount,
+                )
+              }
+              readOnly={readOnly}
+              placeholder="352"
+              inputMode="numeric"
+              data-scorecard-tab-order={holeFieldTabOrder(
+                holeIndex,
+                holeCount,
+                visibleColumnCount,
+                'yardage',
+                visualIndex,
+              )}
+            />
+            {pair ? (
+              <Flex gap={1} align="center">
+                <Button
+                  fontSize={0}
+                  padding={1}
+                  mode={source === pair.low ? 'default' : 'ghost'}
+                  text={`#${pair.low}`}
+                  disabled={readOnly}
+                  style={{
+                    minWidth: '2rem',
+                    borderBottom: `3px solid ${colorByTeeNumber(teeSets, pair.low)}`,
+                  }}
+                  onClick={() => onComboSourceChange(teeIndex, pair.low)}
+                />
+                <Button
+                  fontSize={0}
+                  padding={1}
+                  mode={source === pair.high ? 'default' : 'ghost'}
+                  text={`#${pair.high}`}
+                  disabled={readOnly}
+                  style={{
+                    minWidth: '2rem',
+                    borderBottom: `3px solid ${colorByTeeNumber(teeSets, pair.high)}`,
+                  }}
+                  onClick={() => onComboSourceChange(teeIndex, pair.high)}
+                />
+              </Flex>
+            ) : null}
+          </Stack>
           <TextInput
             value={normalizeHandicap(tee.handicap)[editorGender]}
             onChange={(event) =>
