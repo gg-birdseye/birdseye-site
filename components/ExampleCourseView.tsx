@@ -1087,6 +1087,41 @@ export function ExampleCourseView({
         }
         mobileVideoChrome={mobileVideoChrome}
         showFullscreenButton
+        stageChrome={
+          videoLogoSrc ? (
+            videoLogoHref?.trim() ? (
+              <a
+                href={videoLogoHref.trim()}
+                className="course-video-logo"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`${courseTitle} website`}
+              >
+                {videoLogoSrc === "/example-course-logo.svg" ? (
+                  <ExampleCourseLogo className="course-video-logo-image" />
+                ) : (
+                  <img
+                    src={videoLogoSrc}
+                    alt={courseTitle}
+                    className="course-video-logo-image"
+                  />
+                )}
+              </a>
+            ) : (
+              <div className="course-video-logo pointer-events-none">
+                {videoLogoSrc === "/example-course-logo.svg" ? (
+                  <ExampleCourseLogo className="course-video-logo-image" />
+                ) : (
+                  <img
+                    src={videoLogoSrc}
+                    alt={courseTitle}
+                    className="course-video-logo-image"
+                  />
+                )}
+              </div>
+            )
+          ) : null
+        }
       />
 
       <HoleSelectorOverlay
@@ -1117,40 +1152,6 @@ export function ExampleCourseView({
           }
         }}
       />
-
-      {videoLogoSrc ? (
-        videoLogoHref?.trim() ? (
-          <a
-            href={videoLogoHref.trim()}
-            className="course-video-logo"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={`${courseTitle} website`}
-          >
-            {videoLogoSrc === "/example-course-logo.svg" ? (
-              <ExampleCourseLogo className="course-video-logo-image" />
-            ) : (
-              <img
-                src={videoLogoSrc}
-                alt={courseTitle}
-                className="course-video-logo-image"
-              />
-            )}
-          </a>
-        ) : (
-          <div className="course-video-logo pointer-events-none">
-            {videoLogoSrc === "/example-course-logo.svg" ? (
-              <ExampleCourseLogo className="course-video-logo-image" />
-            ) : (
-              <img
-                src={videoLogoSrc}
-                alt={courseTitle}
-                className="course-video-logo-image"
-              />
-            )}
-          </div>
-        )
-      ) : null}
 
       <CourseMenuButton
         courseTitle={courseTitle}

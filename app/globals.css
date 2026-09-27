@@ -164,20 +164,23 @@ html.hide-scroll-bar::-webkit-scrollbar {
   object-position: top center;
 }
 
-/** Course logo — fixed above UI chrome, bottom-left of video on all orientations.
- * Bottom edge shares --course-video-fullscreen-inset with the fullscreen control
- * so every uploaded logo aligns without per-course tweaks. Prefer tightly cropped
- * assets (minimal transparent padding) so the visible art sits on that edge. */
+/** Course logo — anchored inside the video stage (same box as fullscreen).
+ * Bottom/left share --course-video-fullscreen-inset so every uploaded logo
+ * lines up with the fullscreen control on all layouts. Prefer tightly cropped
+ * assets (minimal transparent padding) so visible art sits on that edge. */
 .course-video-logo {
-  position: fixed;
-  z-index: 100;
-  left: 0.75rem;
+  position: absolute;
+  z-index: 32;
+  left: var(--course-video-fullscreen-inset);
+  bottom: var(--course-video-fullscreen-inset);
+  top: auto;
+  right: auto;
   display: flex;
   align-items: flex-end;
   justify-content: flex-start;
   width: var(--course-video-logo-size);
   height: var(--course-video-logo-size);
-  bottom: calc(6.25rem + env(safe-area-inset-bottom, 0px));
+  pointer-events: auto;
   filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.9)) drop-shadow(0 2px 12px rgba(0, 0, 0, 0.55));
 }
 
@@ -268,11 +271,16 @@ html.course-video-is-fullscreen .course-hole-graphic-panel {
 
 /* Keep on-video chrome above the immersive stage; drop logo into the corner */
 html.course-video-is-fullscreen .course-video-logo {
+  position: fixed !important;
   z-index: 215 !important;
   top: auto !important;
   right: auto !important;
-  left: calc(0.75rem + env(safe-area-inset-left, 0px)) !important;
-  bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px)) !important;
+  left: calc(
+    var(--course-video-fullscreen-inset) + env(safe-area-inset-left, 0px)
+  ) !important;
+  bottom: calc(
+    var(--course-video-fullscreen-inset) + env(safe-area-inset-bottom, 0px)
+  ) !important;
 }
 
 html.course-video-is-fullscreen .course-video-menu {
@@ -290,8 +298,12 @@ html.course-video-is-fullscreen .course-video-fullscreen {
   position: fixed !important;
   z-index: 220;
   top: auto;
-  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
-  right: calc(1rem + env(safe-area-inset-right, 0px));
+  bottom: calc(
+    var(--course-video-fullscreen-inset) + env(safe-area-inset-bottom, 0px)
+  );
+  right: calc(
+    var(--course-video-fullscreen-inset) + env(safe-area-inset-right, 0px)
+  );
   width: var(--course-video-fullscreen-size);
   height: var(--course-video-fullscreen-size);
 }
@@ -767,9 +779,12 @@ html.course-hole-selector-grid-open .course-video-menu {
 }
 
 @media (max-width: 767px) and (orientation: portrait) {
-  .course-video-fullscreen {
+  [data-course-video-stage] {
     --course-video-fullscreen-size: 2rem;
     --course-video-fullscreen-inset: 0.75rem;
+  }
+
+  .course-video-fullscreen {
     right: var(--course-video-fullscreen-inset);
     bottom: var(--course-video-fullscreen-inset);
     top: auto;
@@ -801,11 +816,9 @@ html.course-hole-selector-grid-open .course-video-menu {
 @media (max-width: 767px) and (orientation: portrait) {
   .course-video-logo {
     --course-video-logo-size: 4.5rem;
-    left: 0.25rem;
-    top: calc(
-      56.25vw - var(--course-video-logo-size) - var(--course-video-fullscreen-inset)
-    );
-    bottom: auto;
+    left: var(--course-video-fullscreen-inset);
+    bottom: var(--course-video-fullscreen-inset);
+    top: auto;
   }
 }
 
@@ -1208,21 +1221,21 @@ html.course-hole-selector-grid-open .course-video-menu {
 
   .course-video-logo {
     --course-video-logo-size: 4.5rem;
-    left: calc(var(--course-mobile-landscape-nav-w) + 0.5rem);
-    bottom: calc(
-      var(--course-video-fullscreen-inset) + env(safe-area-inset-bottom, 0px)
-    );
+    left: var(--course-video-fullscreen-inset);
+    bottom: var(--course-video-fullscreen-inset);
+    top: auto;
+  }
+
+  [data-course-video-stage] {
+    --course-video-fullscreen-size: 2rem;
+    --course-video-fullscreen-inset: 0.5rem;
   }
 
   .course-video-fullscreen {
-    position: fixed;
-    z-index: 60;
-    --course-video-fullscreen-size: 2rem;
-    --course-video-fullscreen-inset: 0.5rem;
+    position: absolute;
+    z-index: 32;
     right: var(--course-video-fullscreen-inset);
-    bottom: calc(
-      var(--course-video-fullscreen-inset) + env(safe-area-inset-bottom, 0px)
-    );
+    bottom: var(--course-video-fullscreen-inset);
     top: auto;
   }
 
@@ -1244,10 +1257,7 @@ html.course-hole-selector-grid-open .course-video-menu {
   }
 
   .course-aerial-hole-view-open .course-video-fullscreen {
-    right: calc(
-      var(--course-aerial-hole-panel-w-landscape, 18%) +
-        var(--course-video-fullscreen-inset)
-    );
+    right: var(--course-video-fullscreen-inset);
   }
 
   /* Keep the menu at the top-right of the video column, clear of the hole
@@ -1607,14 +1617,13 @@ html.course-hole-selector-grid-open .course-video-menu {
   }
 
   .course-video-logo {
-    /* Match fullscreen control bottom edge above the desktop footer. */
-    bottom: calc(
-      var(--course-desktop-footer-h) + var(--course-video-fullscreen-inset)
-    );
+    left: var(--course-video-fullscreen-inset);
+    bottom: var(--course-video-fullscreen-inset);
     top: auto;
   }
 
   .course-video-fullscreen {
+    position: absolute;
     right: var(--course-video-fullscreen-inset);
     bottom: var(--course-video-fullscreen-inset);
     top: auto;
@@ -2847,7 +2856,7 @@ html.course-hole-selector-grid-open .course-video-menu {
   }
 
   .course-aerial-hole-view-open .course-video-logo {
-    left: calc(25% + 0.75rem);
+    left: var(--course-video-fullscreen-inset);
   }
 
   .course-aerial-hole-view-open .course-video-fullscreen {

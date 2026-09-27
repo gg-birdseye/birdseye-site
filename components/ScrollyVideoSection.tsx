@@ -56,6 +56,8 @@ type Props = {
   mobileVideoChrome?: ReactNode;
   /** Course pages: show expand/compress control on the video stage. */
   showFullscreenButton?: boolean;
+  /** Course logo (or other chrome) anchored inside the video stage. */
+  stageChrome?: ReactNode;
 };
 
 type HlsAttach = {
@@ -123,6 +125,7 @@ export function ScrollyVideoSection({
   mobileFooter,
   mobileVideoChrome,
   showFullscreenButton = false,
+  stageChrome,
 }: Props) {
   const trackRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -774,6 +777,7 @@ export function ScrollyVideoSection({
               </div>
             ) : null}
 
+            {stageChrome}
             {showFullscreenButton ? <CourseFullscreenButton /> : null}
           </div>
         </div>
