@@ -1298,12 +1298,11 @@ export function courseScorecardData(
   };
 }
 
-/** URL for the course logo overlay on hole pages (square, max 512px). */
+/** URL for the course logo overlay on hole pages (max 512px, keep aspect ratio). */
 export function courseLogoSrc(course: CourseDoc | null): string | undefined {
   if (!course?.courseLogo?.asset) return undefined;
   return urlFor(course.courseLogo as SanityImageSource)
     .width(512)
-    .height(512)
     .fit("max")
     .url();
 }
