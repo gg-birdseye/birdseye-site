@@ -3261,6 +3261,47 @@ html.course-hole-selector-grid-open .course-video-menu {
   }
 }
 
+/**
+ * Mobile portrait + landscape phone: nest tee options under "Select Tee".
+ * max-height is set in JS from the menu to the panel / viewport bottom so the
+ * last tee can scroll fully into view (not under the bottom chrome).
+ */
+@media (max-width: 767px) and (orientation: portrait),
+  (orientation: landscape) and (max-height: 600px) {
+  .course-aerial-hole-view-open .course-hole-graphic-panel-menu-items {
+    z-index: 8;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 0.125rem 0.75rem 0;
+    scroll-padding-bottom: 0.75rem;
+  }
+
+  .course-aerial-hole-view-open .course-hole-graphic-panel-menu-submenu {
+    position: static;
+    top: auto;
+    left: auto;
+    right: auto;
+    z-index: auto;
+    width: 100%;
+    min-width: 0;
+    margin-top: 0.25rem;
+    max-height: none;
+    box-shadow: none;
+  }
+
+  .course-aerial-hole-view-open .course-hole-graphic-panel-menu-flyout-arrow {
+    transform: rotate(90deg);
+  }
+
+  .course-aerial-hole-view-open
+    .course-hole-graphic-panel-menu-flyout-open
+    .course-hole-graphic-panel-menu-flyout-arrow {
+    transform: rotate(-90deg);
+  }
+}
+
 .course-hole-graphic-camera-path-overlay {
   position: absolute;
   inset: 0.25rem;

@@ -67,6 +67,11 @@ type ScorecardChartOverlayProps = {
    * y-axis stays fixed across tee changes so bar heights reflect relative length.
    */
   allTeeYardages?: ReadonlyArray<ReadonlyArray<string | number>>;
+  /**
+   * Optional 1-indexed per-hole bar colors (combo tees). When set, each bar's
+   * top accent (and active body) uses that hole's source-tee color.
+   */
+  holeBarColors?: ReadonlyArray<string | undefined>;
 };
 
 function formatTeeRating(courseRating?: string, slopeRating?: string): string | null {
@@ -462,6 +467,7 @@ export function ScorecardChartOverlay({
   onGenderChange,
   totalPar,
   allTeeYardages,
+  holeBarColors,
 }: ScorecardChartOverlayProps) {
   const [mode, setMode] = useState<ScorecardChartMode>("yardage");
   const [hoveredHole, setHoveredHole] = useState<number | null>(null);
@@ -899,7 +905,8 @@ export function ScorecardChartOverlay({
                       const barHeight = Math.max(2, chartBaseline - barTop);
                       const accentHeight = Math.min(BAR_ACCENT_HEIGHT, barHeight);
                       const bodyHeight = barHeight - accentHeight;
-                      const accentColor = inactiveBarAccentColor(mode, value, teeColor);
+                      const barColor = holeBarColors?.[point.hole] ?? teeColor;
+                      const accentColor = inactiveBarAccentColor(mode, value, barColor);
                       const holeSelectProps = onHoleSelect
                         ? {
                             className: "cursor-pointer" as const,
@@ -941,7 +948,7 @@ export function ScorecardChartOverlay({
                                   bodyHeight,
                                   BAR_CORNER_RADIUS,
                                 )}
-                                fill={isActive ? teeColor : INACTIVE_BAR_FILL}
+                                fill={isActive ? barColor : INACTIVE_BAR_FILL}
                               />
                             ) : null}
                             <path

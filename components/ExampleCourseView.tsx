@@ -842,6 +842,42 @@ export function ExampleCourseView({
     selectedTeeOption?.color ??
     resolveTeeColor(undefined, selectedTee, accentColor);
 
+  /** Per-hole bar colors when a combo tee is selected (from comboSourceTeeNumber). */
+  const holeBarColors = useMemo((): (string | undefined)[] | undefined => {
+    if (demoScorecard || !scorecardData?.tees?.length) return undefined;
+    const tee = scorecardData.tees[selectedTee];
+    if (!tee?.isCombo) return undefined;
+    const pair = tee.comboTeeNumbers;
+    const colors: (string | undefined)[] = [];
+    for (let hole = 1; hole <= holeCount; hole += 1) {
+      const raw = tee.comboSourceTeeNumbers?.[hole];
+      let sourceNum =
+        typeof raw === "number" && Number.isFinite(raw) ? Math.round(raw) : undefined;
+      if (
+        sourceNum == null ||
+        !pair ||
+        (sourceNum !== pair.low && sourceNum !== pair.high)
+      ) {
+        sourceNum = pair?.low;
+      }
+      const standard = scorecardData.tees.find(
+        (candidate) => !candidate.isCombo && candidate.teeNumber === sourceNum,
+      );
+      colors[hole] = resolveTeeColor(
+        standard?.color ?? tee.color,
+        standard?.teeNumber != null ? standard.teeNumber - 1 : selectedTee,
+        accentColor,
+      );
+    }
+    return colors;
+  }, [
+    accentColor,
+    demoScorecard,
+    holeCount,
+    scorecardData,
+    selectedTee,
+  ]);
+
   const aerialTeeIndex = useMemo(
     () => resolveAerialTeeIndex(scorecardData, selectedTee, activeHole),
     [activeHole, scorecardData, selectedTee],
@@ -1208,6 +1244,7 @@ export function ExampleCourseView({
           onGenderChange={setScorecardGender}
           totalPar={selectedTeeTotalPar ?? selectedTeeOption?.totalPar}
           allTeeYardages={allTeeYardages}
+          holeBarColors={holeBarColors}
         />
       )}
 

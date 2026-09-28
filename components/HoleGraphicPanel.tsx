@@ -73,6 +73,7 @@ export function HoleGraphicPanel({
 }: HoleGraphicPanelProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuItemsRef = useRef<HTMLDivElement>(null);
   const disclaimerRef = useRef<HTMLDivElement>(null);
   const [trackerVisible, setTrackerVisible] = useState(true);
   const [rulerVisible, setRulerVisible] = useState(true);
@@ -134,6 +135,49 @@ export function HoleGraphicPanel({
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [actionsOpen, teeMenuOpen]);
+
+  // Keep the view-options / tee list scrollable within the hole panel so the
+  // last tee isn't clipped by the bottom bar (higher z-index) or viewport edge.
+  useEffect(() => {
+    if (!actionsOpen) return;
+    const menu = menuRef.current;
+    const items = menuItemsRef.current;
+    if (!menu || !items) return;
+
+    const updateMaxHeight = () => {
+      const panel = menu.closest(".course-hole-graphic-panel");
+      if (!panel) return;
+      const panelBottom = panel.getBoundingClientRect().bottom;
+      const itemsTop = items.getBoundingClientRect().top;
+      const visualViewport = window.visualViewport;
+      const viewportBottom = visualViewport
+        ? visualViewport.offsetTop + visualViewport.height
+        : window.innerHeight;
+      const limitBottom = Math.min(panelBottom, viewportBottom) - 8;
+      const available = Math.floor(limitBottom - itemsTop);
+      items.style.maxHeight = `${Math.max(96, available)}px`;
+    };
+
+    updateMaxHeight();
+    const raf = requestAnimationFrame(updateMaxHeight);
+    const panel = menu.closest(".course-hole-graphic-panel");
+    const observer =
+      typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateMaxHeight) : null;
+    if (panel && observer) observer.observe(panel);
+    observer?.observe(items);
+    window.addEventListener("resize", updateMaxHeight);
+    window.visualViewport?.addEventListener("resize", updateMaxHeight);
+    window.visualViewport?.addEventListener("scroll", updateMaxHeight);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      observer?.disconnect();
+      window.removeEventListener("resize", updateMaxHeight);
+      window.visualViewport?.removeEventListener("resize", updateMaxHeight);
+      window.visualViewport?.removeEventListener("scroll", updateMaxHeight);
+      items.style.maxHeight = "";
+    };
+  }, [actionsOpen, teeMenuOpen, teeOptions.length]);
 
   useEffect(() => {
     if (!disclaimerOpen) return;
@@ -323,7 +367,7 @@ export function HoleGraphicPanel({
         </svg>
       </button>
       {actionsOpen ? (
-        <div className="course-hole-graphic-panel-menu-items">
+        <div ref={menuItemsRef} className="course-hole-graphic-panel-menu-items">
           {panelActionButtons}
         </div>
       ) : null}
