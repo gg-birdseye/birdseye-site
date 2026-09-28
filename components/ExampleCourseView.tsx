@@ -1219,7 +1219,7 @@ export function ExampleCourseView({
         <ScorecardMobileDataOverlay
           open={panelOpen === "scorecard"}
           activeHole={activeHole}
-          teeColor={selectedTeeColor}
+          teeColor={holeBarColors?.[activeHole] ?? selectedTeeColor}
           tee={mobileTee}
           teeOptions={teeOptions}
           selectedTee={selectedTee}
