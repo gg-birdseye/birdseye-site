@@ -1327,11 +1327,21 @@ export function AdminOnboardingDashboard() {
                         <p className="mt-1 text-sm text-stone-500">
                           Delivered {new Date(client.deliveredAt).toLocaleDateString()}
                           {client.annualBillingStartsAt
-                            ? ` · remaining 50% / annual renewals start ${new Date(client.annualBillingStartsAt).toLocaleDateString()}`
+                            ? client.plan === "monthly"
+                              ? ` · monthly billing resumes ${new Date(client.annualBillingStartsAt).toLocaleDateString()}`
+                              : ` · remaining 50% / annual renewals start ${new Date(client.annualBillingStartsAt).toLocaleDateString()}`
                             : ""}
                           {client.stripeSubscriptionScheduleId
                             ? " · Stripe schedule created"
                             : ""}
+                        </p>
+                      ) : null}
+                      {client.plan === "monthly" &&
+                      client.onboardingStatus === "active" &&
+                      !client.deliveredAt ? (
+                        <p className="mt-1 text-sm text-stone-500">
+                          After the first month, further charges wait until marked delivered ·
+                          then resume on the 1st of the following month
                         </p>
                       ) : null}
                       {client.plan !== "monthly" && client.annualBillingStartsAt ? (
@@ -1386,13 +1396,14 @@ export function AdminOnboardingDashboard() {
                         </button>
                       ) : null}
                       {client.onboardingStatus === "active" &&
-                      client.plan !== "monthly" &&
                       !client.deliveredAt ? (
                         <button
                           type="button"
                           onClick={() => {
                             const confirmed = window.confirm(
-                              `Mark "${resolveAccountLabel(client)}" as delivered?\n\nThis schedules the remaining 50% for the 1st of next month, then 100% annual renewals on that same date.`,
+                              client.plan === "monthly"
+                                ? `Mark "${resolveAccountLabel(client)}" as delivered?\n\nMonthly billing stays paused until then. The next charge runs on the 1st of next month, then continues monthly.`
+                                : `Mark "${resolveAccountLabel(client)}" as delivered?\n\nThis schedules the remaining 50% for the 1st of next month, then 100% annual renewals on that same date.`,
                             );
                             if (!confirmed) return;
                             void runClientAction(client.id, "mark-delivered");

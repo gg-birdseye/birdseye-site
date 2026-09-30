@@ -58,7 +58,7 @@ export function LaunchDemoButton() {
 
   return (
     <Link
-      href="/birchcreek"
+      href="/ledges"
       className={`${styles.root} ${hovered ? styles.hovered : ""}`}
       aria-label="Preview course"
       onPointerEnter={activate}

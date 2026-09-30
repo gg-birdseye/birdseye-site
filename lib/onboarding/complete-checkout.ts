@@ -1,7 +1,7 @@
 import type { Client } from "@/lib/db/schema";
 import { activateClient } from "@/lib/onboarding/activation";
 import { saveCheckoutCardForFutureUse } from "@/lib/onboarding/annual-billing";
-import { scheduleMonthlyYear2PriceDrop } from "@/lib/onboarding/monthly-billing";
+import { holdMonthlyBillingUntilDelivery } from "@/lib/onboarding/monthly-billing";
 import { getClientById, updateClientById } from "@/lib/onboarding/clients";
 import { resolvePlan } from "@/lib/onboarding/client-utils";
 import {
@@ -85,9 +85,9 @@ export async function completeCheckoutIfPaid(client: Client) {
 
   if (resolvePlan(updated) === "monthly") {
     try {
-      await scheduleMonthlyYear2PriceDrop(updated);
+      await holdMonthlyBillingUntilDelivery(updated);
     } catch (error) {
-      console.error("Failed to schedule monthly Year 2+ price drop:", error);
+      console.error("Failed to hold monthly billing until delivery:", error);
     }
   }
 

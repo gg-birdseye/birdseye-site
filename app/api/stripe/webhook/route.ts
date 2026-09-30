@@ -9,7 +9,7 @@ import {
 } from "@/lib/onboarding/clients";
 import { activateClient, setClientBillingStatus } from "@/lib/onboarding/activation";
 import { saveCheckoutCardForFutureUse } from "@/lib/onboarding/annual-billing";
-import { scheduleMonthlyYear2PriceDrop } from "@/lib/onboarding/monthly-billing";
+import { holdMonthlyBillingUntilDelivery } from "@/lib/onboarding/monthly-billing";
 import { getStripe, isStripeConfigured, syncStripeCustomerForClient } from "@/lib/stripe";
 import { sendPaymentFailedEmail } from "@/lib/email/onboarding";
 import { resolvePlan } from "@/lib/onboarding/client-utils";
@@ -107,9 +107,9 @@ export async function POST(request: Request) {
           const paidClient = await getClientById(clientId);
           if (paidClient && resolvePlan(paidClient) === "monthly") {
             try {
-              await scheduleMonthlyYear2PriceDrop(paidClient);
+              await holdMonthlyBillingUntilDelivery(paidClient);
             } catch (error) {
-              console.error("Failed to schedule monthly Year 2+ price drop:", error);
+              console.error("Failed to hold monthly billing until delivery:", error);
             }
           }
         }

@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/admin-session";
 import { isDatabaseConfigured } from "@/lib/db";
 import { scheduleAnnualBillingAfterDelivery } from "@/lib/onboarding/annual-billing";
-import { getClientById, updateClientById } from "@/lib/onboarding/clients";
+import { scheduleMonthlyBillingAfterDelivery } from "@/lib/onboarding/monthly-billing";
+import { getClientById } from "@/lib/onboarding/clients";
 import { resolvePlan } from "@/lib/onboarding/client-utils";
 
 type Params = { params: Promise<{ id: string }> };
@@ -34,14 +35,41 @@ export async function POST(_request: Request, { params }: Params) {
     );
   }
 
-  if (resolvePlan(client) !== "annual") {
-    const deliveredAt = client.deliveredAt ?? new Date();
-    const updated = await updateClientById(id, { deliveredAt });
-    return NextResponse.json({
-      client: updated,
-      stripeScheduled: false,
-      message: "Delivery recorded. Monthly subscriptions are billed by Stripe separately.",
-    });
+  const plan = resolvePlan(client);
+
+  if (plan === "monthly") {
+    try {
+      const deliveredAt = client.deliveredAt ?? new Date();
+      const result = await scheduleMonthlyBillingAfterDelivery({
+        ...client,
+        deliveredAt,
+      });
+
+      return NextResponse.json({
+        client: result.client,
+        alreadyScheduled: result.alreadyScheduled,
+        stripeScheduled: result.stripeScheduled,
+        billingStartsAt: result.billingStartsAt,
+      });
+    } catch (error) {
+      console.error("Failed to resume monthly billing after delivery:", error);
+      return NextResponse.json(
+        {
+          error:
+            error instanceof Error
+              ? error.message
+              : "Unable to schedule monthly billing after delivery in Stripe.",
+        },
+        { status: 502 },
+      );
+    }
+  }
+
+  if (plan !== "annual") {
+    return NextResponse.json(
+      { error: "Unsupported plan for mark delivered." },
+      { status: 400 },
+    );
   }
 
   if (client.deliveredAt && client.stripeSubscriptionScheduleId) {
