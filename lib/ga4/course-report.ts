@@ -67,29 +67,35 @@ function formatHoleLabel(value: string) {
   return value;
 }
 
+function isHole1Label(label: string) {
+  if (label === "Hole 1") return true;
+  return Number(label) === 1;
+}
+
 /**
  * Default page loads land on hole 1 without a historical `hole_select` event.
- * Credit hole 1 with at least the course-page visitor count so reports match
- * what golfers actually saw on first paint. Uses max() so once we also fire
- * `hole_select` on load, we do not double-count.
+ * Credit hole 1 with at least course-page sessions (better proxy for loads than
+ * unique visitors — one golfer can open several sessions) and never below any
+ * other hole's jump count, since those golfers already saw hole 1 first.
  */
 export function withDefaultHole1Views(
   holes: NamedCount[],
   visitors: number,
+  sessions = 0,
 ): NamedCount[] {
-  if (visitors <= 0) return holes;
+  const baseline = Math.max(visitors, sessions);
+  if (baseline <= 0 && holes.length === 0) return holes;
 
   const next = holes.map((row) => ({ ...row }));
-  const hole1 = next.find((row) => {
-    if (row.label === "Hole 1") return true;
-    const number = Number(row.label);
-    return number === 1;
-  });
+  const others = next.filter((row) => !isHole1Label(row.label));
+  const maxOther = others.reduce((max, row) => Math.max(max, row.count), 0);
+  const credited = Math.max(baseline, maxOther);
 
+  const hole1 = next.find((row) => isHole1Label(row.label));
   if (hole1) {
-    hole1.count = Math.max(hole1.count, visitors);
-  } else {
-    next.push({ label: "Hole 1", count: visitors });
+    hole1.count = Math.max(hole1.count, credited);
+  } else if (credited > 0) {
+    next.push({ label: "Hole 1", count: credited });
   }
 
   return next.sort((a, b) => b.count - a.count);
@@ -262,7 +268,7 @@ export async function fetchCourseAnalyticsReport(options: {
       label: formatDeviceLabel(row.label),
       count: row.count,
     })),
-    holes: withDefaultHole1Views(holes, visitors),
+    holes: withDefaultHole1Views(holes, visitors, sessions),
     panels,
     eventTotals: {
       holeSelects,
