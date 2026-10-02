@@ -11,10 +11,25 @@ import {
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+/** One-time catch-up after the Oct 1, 2026 run failed (missing CRON_SECRET). */
+const CATCH_UP_UTC = { year: 2026, month: 10, day: 2 };
+
 function isAuthorizedCron(request: Request) {
   const secret = process.env.CRON_SECRET?.trim();
   if (!secret) return false;
   return request.headers.get("authorization") === `Bearer ${secret}`;
+}
+
+function isScheduledReportDay(now = new Date()) {
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth() + 1;
+  const day = now.getUTCDate();
+  if (day === 1) return true;
+  return (
+    year === CATCH_UP_UTC.year &&
+    month === CATCH_UP_UTC.month &&
+    day === CATCH_UP_UTC.day
+  );
 }
 
 async function handle(request: Request) {
@@ -50,6 +65,17 @@ async function handle(request: Request) {
 
   const url = new URL(request.url);
   const dryRun = url.searchParams.get("dryRun") === "1";
+  const force = url.searchParams.get("force") === "1";
+
+  if (!dryRun && !force && !isScheduledReportDay()) {
+    return NextResponse.json({
+      ok: true,
+      skipped: "not_scheduled_day",
+      message:
+        "Course analytics reports only send on the 1st (UTC) or the one-time 2026-10-02 catch-up. Pass force=1 to override.",
+    });
+  }
+
   const range = lastCalendarMonth();
   const jobs = await listMonthlyReportJobs();
   const sent: { slug: string; to: string[] }[] = [];
