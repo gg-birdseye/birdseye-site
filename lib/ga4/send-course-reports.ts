@@ -13,6 +13,17 @@ export type CourseReportRecipient = {
   contactName: string | null;
 };
 
+type SanityCourseRef = {
+  slug: string;
+  title: string;
+};
+
+type CourseSlugSource = {
+  courseSlug?: string | null;
+  sanityCourseId?: string | null;
+  courseName?: string | null;
+};
+
 export function parseReportRange(input: {
   startDate?: string | null;
   endDate?: string | null;
@@ -41,6 +52,63 @@ export async function listReportableCourses(): Promise<
     }));
 }
 
+async function loadSanityCourseIndexes() {
+  const courses = await getCoursesList();
+  const byId = new Map<string, SanityCourseRef>();
+  const bySlug = new Map<string, SanityCourseRef>();
+  const byTitle = new Map<string, SanityCourseRef>();
+
+  for (const course of courses) {
+    const slug = course.slug?.trim();
+    if (!slug) continue;
+    const ref: SanityCourseRef = {
+      slug,
+      title: course.title?.trim() || slug,
+    };
+    if (course._id) byId.set(course._id, ref);
+    bySlug.set(slug, ref);
+    byTitle.set(ref.title.toLowerCase(), ref);
+  }
+
+  return { byId, bySlug, byTitle };
+}
+
+/**
+ * Prefer the live Sanity page slug for GA4 pagePath filters. Client DB slugs can
+ * drift from published URLs (e.g. the-ledges vs /ledges).
+ */
+export function resolveAnalyticsCourseSlug(
+  source: CourseSlugSource,
+  indexes: Awaited<ReturnType<typeof loadSanityCourseIndexes>>,
+): SanityCourseRef | null {
+  const sanityId = source.sanityCourseId?.trim();
+  if (sanityId) {
+    const fromId = indexes.byId.get(sanityId);
+    if (fromId) return fromId;
+  }
+
+  const storedSlug = source.courseSlug?.trim();
+  if (storedSlug) {
+    const fromSlug = indexes.bySlug.get(storedSlug);
+    if (fromSlug) return fromSlug;
+  }
+
+  const name = source.courseName?.trim().toLowerCase();
+  if (name) {
+    const fromTitle = indexes.byTitle.get(name);
+    if (fromTitle) return fromTitle;
+  }
+
+  if (storedSlug) {
+    return {
+      slug: storedSlug,
+      title: source.courseName?.trim() || storedSlug,
+    };
+  }
+
+  return null;
+}
+
 export async function resolveCourseReportRecipient(
   slug: string,
 ): Promise<CourseReportRecipient> {
@@ -51,6 +119,10 @@ export async function resolveCourseReportRecipient(
   }
 
   const db = getDb();
+  const indexes = await loadSanityCourseIndexes();
+  const canonical = indexes.bySlug.get(slug);
+  const sanityId = course?._id ?? null;
+
   const [legacy] = await db
     .select()
     .from(clients)
@@ -82,6 +154,56 @@ export async function resolveCourseReportRecipient(
     };
   }
 
+  // Client rows may store a non-canonical slug; match via Sanity id / title.
+  const rows = await db.select().from(clients);
+  for (const client of rows) {
+    const emails = recipientEmails(client);
+    if (emails.length === 0) continue;
+
+    if (sanityId && client.sanityCourseId === sanityId) {
+      return {
+        slug,
+        title: client.courseName?.trim() || title,
+        emails,
+        contactName: client.contactName,
+      };
+    }
+
+    const linkedCourses = await db
+      .select()
+      .from(clientCourses)
+      .where(eq(clientCourses.clientId, client.id));
+
+    if (sanityId && linkedCourses.some((row) => row.sanityCourseId === sanityId)) {
+      return {
+        slug,
+        title: client.courseName?.trim() || title,
+        emails,
+        contactName: client.contactName,
+      };
+    }
+
+    const sources: CourseSlugSource[] = [
+      ...linkedCourses,
+      {
+        courseSlug: client.courseSlug,
+        sanityCourseId: client.sanityCourseId,
+        courseName: client.courseName,
+      },
+    ];
+    for (const source of sources) {
+      const resolved = resolveAnalyticsCourseSlug(source, indexes);
+      if (resolved?.slug === slug || (canonical && resolved?.slug === canonical.slug)) {
+        return {
+          slug,
+          title: resolved.title || client.courseName?.trim() || title,
+          emails,
+          contactName: client.contactName,
+        };
+      }
+    }
+  }
+
   return { slug, title, emails: [], contactName: null };
 }
 
@@ -90,6 +212,7 @@ export async function listMonthlyReportJobs(): Promise<CourseReportRecipient[]> 
 
   const db = getDb();
   const rows = await db.select().from(clients);
+  const indexes = await loadSanityCourseIndexes();
   const jobs = new Map<string, CourseReportRecipient>();
 
   for (const client of rows) {
@@ -104,18 +227,25 @@ export async function listMonthlyReportJobs(): Promise<CourseReportRecipient[]> 
       .from(clientCourses)
       .where(eq(clientCourses.clientId, client.id));
 
-    const slugs = [
-      ...linked
-        .map((course) => course.courseSlug?.trim())
-        .filter((value): value is string => Boolean(value)),
-      ...(client.courseSlug?.trim() ? [client.courseSlug.trim()] : []),
+    const sources: CourseSlugSource[] = [
+      ...linked.map((course) => ({
+        courseSlug: course.courseSlug,
+        sanityCourseId: course.sanityCourseId,
+        courseName: course.courseName,
+      })),
+      {
+        courseSlug: client.courseSlug,
+        sanityCourseId: client.sanityCourseId,
+        courseName: client.courseName,
+      },
     ];
 
-    for (const slug of [...new Set(slugs)]) {
-      if (jobs.has(slug)) continue;
-      jobs.set(slug, {
-        slug,
-        title: client.courseName?.trim() || slug,
+    for (const source of sources) {
+      const resolved = resolveAnalyticsCourseSlug(source, indexes);
+      if (!resolved || jobs.has(resolved.slug)) continue;
+      jobs.set(resolved.slug, {
+        slug: resolved.slug,
+        title: resolved.title || client.courseName?.trim() || resolved.slug,
         emails,
         contactName: client.contactName,
       });
