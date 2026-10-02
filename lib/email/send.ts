@@ -30,6 +30,8 @@ export async function sendEmail(options: {
   text?: string;
   replyTo?: string;
   bcc?: string | string[];
+  /** When true, skip the default AUTOMATED_EMAIL_BCC (e.g. internal-only alerts). */
+  omitAutomatedBcc?: boolean;
   /** When true, missing Resend config throws instead of skipping. */
   required?: boolean;
 }): Promise<boolean> {
@@ -54,9 +56,10 @@ export async function sendEmail(options: {
     : options.bcc
       ? [options.bcc]
       : [];
-  const bcc = normalizeAddresses([AUTOMATED_EMAIL_BCC, ...extraBcc]).filter(
-    (address) => !to.includes(address),
-  );
+  const bcc = normalizeAddresses([
+    ...(options.omitAutomatedBcc ? [] : [AUTOMATED_EMAIL_BCC]),
+    ...extraBcc,
+  ]).filter((address) => !to.includes(address));
 
   const { error } = await resend.emails.send({
     from,

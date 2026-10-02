@@ -12,6 +12,7 @@ import { saveCheckoutCardForFutureUse } from "@/lib/onboarding/annual-billing";
 import { holdMonthlyBillingUntilDelivery } from "@/lib/onboarding/monthly-billing";
 import { getStripe, isStripeConfigured, syncStripeCustomerForClient } from "@/lib/stripe";
 import { sendPaymentFailedEmail } from "@/lib/email/onboarding";
+import { sendAdminAutomaticPaymentEmail } from "@/lib/email/stripe-payments";
 import { resolvePlan } from "@/lib/onboarding/client-utils";
 
 const GRACE_PERIOD_DAYS = 7;
@@ -176,14 +177,33 @@ export async function POST(request: Request) {
 
       case "invoice.paid": {
         const invoice = event.data.object as Stripe.Invoice;
-        // Initial subscription checkout is handled by checkout.session.completed.
-        if (invoice.billing_reason === "subscription_create") break;
-
         const customerId =
           typeof invoice.customer === "string" ? invoice.customer : null;
-        if (!customerId) break;
+        const client = customerId
+          ? await getClientByStripeCustomerId(customerId)
+          : null;
 
-        const client = await getClientByStripeCustomerId(customerId);
+        if (invoice.amount_paid > 0) {
+          try {
+            await sendAdminAutomaticPaymentEmail({ invoice, client });
+          } catch (error) {
+            console.error("Failed to send admin automatic payment email:", error);
+          }
+        }
+
+        // Initial subscription checkout activation is handled by
+        // checkout.session.completed — avoid racing a second activate.
+        if (invoice.billing_reason === "subscription_create") {
+          if (client?.onboardingStatus === "active") {
+            await setClientBillingStatus(client.id, "active", {
+              paymentStatus: "paid",
+              gracePeriodEndsAt: null,
+              suspendedAt: null,
+            });
+          }
+          break;
+        }
+
         if (!client) break;
 
         if (client.onboardingStatus !== "active") {
