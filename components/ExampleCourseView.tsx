@@ -318,6 +318,7 @@ export function ExampleCourseView({
   const progressScrubbingRef = useRef(false);
   const activeHoleRef = useRef(1);
   const syncedFromUrl = useRef(false);
+  const didTrackInitialHoleView = useRef(false);
   const didInitBackTee = useRef(false);
   const didInitAerialDefault = useRef(false);
 
@@ -638,6 +639,19 @@ export function ExampleCourseView({
       });
     }
   }, [holeCount, initialHole, perHoleMode]);
+
+  // Count the hole shown on first paint (usually hole 1) — goToHole only
+  // tracks later navigations between holes.
+  useEffect(() => {
+    if (didTrackInitialHoleView.current) return;
+    didTrackInitialHoleView.current = true;
+    const hole = Math.max(1, initialHole || 1);
+    trackCourseEvent("hole_select", analyticsCourse, {
+      hole_number: hole,
+      previous_hole: 0,
+      initial_load: true,
+    });
+  }, [analyticsCourse, initialHole]);
 
   useEffect(() => {
     setBarProgress(0);

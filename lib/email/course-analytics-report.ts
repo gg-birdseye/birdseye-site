@@ -245,11 +245,13 @@ export function buildCourseAnalyticsReportHtml(
             <td style="background:${CARD};border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:24px 22px;">
               ${listSection(
                 "Most explored holes",
-                "Holes golfers jumped to most often in the interactive preview.",
+                "Includes the default opening hole on page load, plus holes golfers jumped to in the interactive preview.",
                 report.holes,
                 report.eventTotals.holeSelects > 0
-                  ? `${formatCount(report.eventTotals.holeSelects)} hole jumps were recorded. Register the hole_number custom dimension in GA4 to break this out by hole.`
-                  : "Golfers have not jumped between holes yet.",
+                  ? `${formatCount(report.eventTotals.holeSelects)} hole jumps were recorded (hole 1 also includes default page loads). Register the hole_number custom dimension in GA4 to break this out by hole.`
+                  : report.visitors > 0
+                    ? "Golfers opened the preview on hole 1; no further hole jumps were recorded yet."
+                    : "Golfers have not explored holes yet.",
               )}
             </td>
           </tr>

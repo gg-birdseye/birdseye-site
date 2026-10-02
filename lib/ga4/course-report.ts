@@ -67,6 +67,34 @@ function formatHoleLabel(value: string) {
   return value;
 }
 
+/**
+ * Default page loads land on hole 1 without a historical `hole_select` event.
+ * Credit hole 1 with at least the course-page visitor count so reports match
+ * what golfers actually saw on first paint. Uses max() so once we also fire
+ * `hole_select` on load, we do not double-count.
+ */
+export function withDefaultHole1Views(
+  holes: NamedCount[],
+  visitors: number,
+): NamedCount[] {
+  if (visitors <= 0) return holes;
+
+  const next = holes.map((row) => ({ ...row }));
+  const hole1 = next.find((row) => {
+    if (row.label === "Hole 1") return true;
+    const number = Number(row.label);
+    return number === 1;
+  });
+
+  if (hole1) {
+    hole1.count = Math.max(hole1.count, visitors);
+  } else {
+    next.push({ label: "Hole 1", count: visitors });
+  }
+
+  return next.sort((a, b) => b.count - a.count);
+}
+
 function formatPanelLabel(value: string) {
   if (value === "map" || value === "aerial") return "Aerial map";
   if (value === "scorecard") return "Scorecard";
@@ -234,7 +262,7 @@ export async function fetchCourseAnalyticsReport(options: {
       label: formatDeviceLabel(row.label),
       count: row.count,
     })),
-    holes,
+    holes: withDefaultHole1Views(holes, visitors),
     panels,
     eventTotals: {
       holeSelects,
